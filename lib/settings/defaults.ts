@@ -3,6 +3,7 @@ import { ensureEmailSettings } from "@/lib/email";
 
 /** Contact, hours and social settings shown on the public website (and on invoices). */
 export const CONTACT_SETTING_DEFAULTS: { key: string; value: string; group: string; type?: string }[] = [
+  { key: "business_logo", value: "", group: "general" },
   { key: "business_phone", value: "", group: "general" },
   { key: "business_whatsapp", value: "", group: "general" },
   { key: "business_email", value: "", group: "general" },

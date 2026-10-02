@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateSetting, sendTestEmail } from "@/actions/settings";
 import { cn } from "@/lib/utils";
+import { ImageUploadField } from "@/components/dashboard/image-upload-field";
 
 type Setting = {
   id: string;
@@ -39,7 +40,7 @@ const CONTACT_ORDER = [
   "social_facebook", "social_instagram", "social_tiktok",
 ];
 
-const GENERAL_ORDER = ["business_name", "business_description", "currency", "hero_title", "hero_description", "tax_enabled", "tax_rate"];
+const GENERAL_ORDER = ["business_logo", "business_name", "business_description", "currency", "hero_title", "hero_description", "tax_enabled", "tax_rate"];
 
 function tabOf(s: Setting): TabId {
   if (s.group === "email") return "email";
@@ -51,6 +52,7 @@ function tabOf(s: Setting): TabId {
 }
 
 const LABELS: Record<string, string> = {
+  business_logo: "Logo",
   business_name: "Business name",
   business_description: "Business description (About page)",
   business_phone: "Phone number",
@@ -154,6 +156,25 @@ export function SettingsClient({ settings }: { settings: Setting[] }) {
   }
 
   function field(s: Setting) {
+    if (s.key === "business_logo") {
+      return (
+        <div key={s.id} className="md:col-span-2">
+          <Label className="text-sm">Business logo</Label>
+          <div className="mt-2">
+            <ImageUploadField
+              name="business_logo"
+              target="logo"
+              variant="logo"
+              initialUrl={saved[s.id] ?? ""}
+              onChange={(url) => setValues((p) => ({ ...p, [s.id]: url }))}
+            />
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Shown in the website header and footer, the dashboard, the sign-in page and on invoices. PNG with a transparent background works best. Press Save changes after uploading.
+          </p>
+        </div>
+      );
+    }
     const isBool = s.type === "boolean" || s.key === "smtp_secure";
     return (
       <div key={s.id}>

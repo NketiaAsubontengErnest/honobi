@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSite, type SiteInfo } from "@/lib/site";
 import { PublicNavbar } from "@/components/public/navbar";
+import { BrandLogo } from "@/components/brand-logo";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export default async function PublicLayout({
   const site = await getSite();
   return (
     <div className="flex min-h-screen flex-col">
-      <PublicNavbar />
+      <PublicNavbar logoUrl={site.logoUrl} name={site.name} />
       <main className="flex-1">{children}</main>
       <PublicFooter site={site} />
     </div>
@@ -26,10 +27,8 @@ function PublicFooter({ site }: { site: SiteInfo }) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-                H
-              </div>
-              <span className="font-bold">{site.name}</span>
+              <BrandLogo url={site.logoUrl} name={site.name} className="h-8" fallbackClassName="h-8 w-8 text-sm" />
+              {!site.logoUrl && <span className="font-bold">{site.name}</span>}
             </div>
             <p className="text-sm text-muted-foreground">
               Crafting excellence in wood. Custom furniture, cabinets, and carpentry solutions for Ghana&apos;s finest homes and offices.

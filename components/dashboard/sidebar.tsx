@@ -1,5 +1,6 @@
 "use client";
 
+import { BrandLogo } from "@/components/brand-logo";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -122,7 +123,7 @@ function isActiveHref(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function DashboardSidebar({ userName, userRole }: { userName: string; userRole: string }) {
+export function DashboardSidebar({ userName, userRole, logoUrl }: { userName: string; userRole: string; logoUrl?: string | null }) {
   const pathname = usePathname();
   const allowed = getPermissions(userRole);
 
@@ -161,10 +162,8 @@ export function DashboardSidebar({ userName, userRole }: { userName: string; use
       {/* Logo */}
       <div className="flex h-16 items-center border-b px-4">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-            H
-          </div>
-          <span className="font-semibold text-lg">HONOBI</span>
+          <BrandLogo url={logoUrl} className="h-8" fallbackClassName="h-8 w-8 text-sm" />
+          {!logoUrl && <span className="font-semibold text-lg">HONOBI</span>}
         </Link>
       </div>
 
@@ -248,10 +247,8 @@ export function DashboardSidebar({ userName, userRole }: { userName: string; use
       {/* Mobile header */}
       <div className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b bg-background px-4 lg:hidden print:hidden">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-            H
-          </div>
-          <span className="font-semibold">HONOBI</span>
+          <BrandLogo url={logoUrl} className="h-8" fallbackClassName="h-8 w-8 text-sm" />
+          {!logoUrl && <span className="font-semibold">HONOBI</span>}
         </Link>
         <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2">
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

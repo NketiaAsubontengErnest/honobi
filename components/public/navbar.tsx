@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Menu, X } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -23,7 +24,7 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function PublicNavbar() {
+export function PublicNavbar({ logoUrl, name }: { logoUrl?: string | null; name?: string }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -31,11 +32,13 @@ export function PublicNavbar() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
-            H
-          </div>
-          <span className="text-lg font-bold hidden sm:inline">HONOBI</span>
-          <span className="text-xs text-muted-foreground hidden md:inline">WOOD JOINERY</span>
+          <BrandLogo url={logoUrl} name={name} />
+          {!logoUrl && (
+            <>
+              <span className="text-lg font-bold hidden sm:inline">HONOBI</span>
+              <span className="text-xs text-muted-foreground hidden md:inline">WOOD JOINERY</span>
+            </>
+          )}
         </Link>
 
         {/* Desktop nav */}

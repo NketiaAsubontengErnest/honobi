@@ -27,13 +27,15 @@ export async function POST(req: NextRequest) {
   const allowed =
     target === "project"
       ? hasPermission(user.role, "projects:create") || hasPermission(user.role, "projects:edit")
-      : target === "service"
+      : target === "logo"
+        ? hasPermission(user.role, "settings:edit")
+        : target === "service"
         ? hasPermission(user.role, "services:create") || hasPermission(user.role, "services:edit")
         : hasPermission(user.role, "media:upload");
   if (!allowed) {
     return NextResponse.json({ error: "You are not allowed to upload images here" }, { status: 403 });
   }
-  const registerInLibrary = target !== "project" && target !== "service";
+  const registerInLibrary = target !== "project" && target !== "service" && target !== "logo";
 
   const files = form.getAll("files").filter((f): f is File => f instanceof File);
   if (files.length === 0) return NextResponse.json({ error: "No files received" }, { status: 400 });

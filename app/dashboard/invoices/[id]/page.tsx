@@ -22,6 +22,7 @@ export default async function InvoiceDetailPage({
   const settings = await getAllSettingsMap();
   const business = {
     name: settings.business_name || "HONOBI WOOD JOINERY",
+    logo: settings.business_logo || "",
     phone: settings.business_phone || "",
     email: settings.business_email || "",
     address: settings.business_address || "",
@@ -77,12 +78,17 @@ export default async function InvoiceDetailPage({
         {/* Letterhead */}
         <header className="flex items-start justify-between gap-6 border-b-4 border-amber-700 pb-5" style={{ borderBottomColor: "#8a5a2b" }}>
           <div className="flex items-center gap-4">
-            <div
-              className="h-14 w-14 rounded-full flex items-center justify-center text-white text-2xl font-bold shrink-0"
-              style={{ background: "linear-gradient(135deg, #b07a44, #7a4a22)" }}
-            >
-              H
-            </div>
+            {business.logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={business.logo} alt={`${business.name} logo`} className="h-14 w-auto max-w-[8rem] object-contain shrink-0" />
+            ) : (
+              <div
+                className="h-14 w-14 rounded-full flex items-center justify-center text-white text-2xl font-bold shrink-0"
+                style={{ background: "linear-gradient(135deg, #b07a44, #7a4a22)" }}
+              >
+                H
+              </div>
+            )}
             <div>
               <p className="text-2xl font-bold tracking-wide">{business.name}</p>
               <p className="text-sm text-gray-600">Crafting Excellence in Wood</p>

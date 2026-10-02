@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 
 export interface SiteInfo {
   name: string;
+  logoUrl: string | null;
   phone: string;
   email: string;
   address: string;
@@ -33,6 +34,7 @@ export async function getSite(): Promise<SiteInfo> {
 
   return {
     name: pick(s.business_name, "HONOBI WOOD JOINERY"),
+    logoUrl: s.business_logo || null,
     phone: pick(s.business_phone, process.env.NEXT_PUBLIC_CONTACT_PHONE),
     email: pick(s.business_email, process.env.NEXT_PUBLIC_CONTACT_EMAIL),
     address,
