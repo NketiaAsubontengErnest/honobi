@@ -208,7 +208,7 @@ export default async function HomePage() {
               <Button size="lg" variant="secondary">Get a Free Quote</Button>
             </Link>
             <Link href="/contact">
-              <Button size="lg" variant="outline" className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10">
+              <Button size="lg" variant="outline" className="bg-transparent border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary">
                 Contact Us
               </Button>
             </Link>
