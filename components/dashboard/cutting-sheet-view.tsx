@@ -115,6 +115,9 @@ export function CuttingSheetView({
             ? { top: e.left, right: e.top, bottom: e.right, left: e.bottom }
             : { top: e.top, right: e.right, bottom: e.bottom, left: e.left };
           const banded = [side.top, side.right, side.bottom, side.left].filter(Boolean) as string[];
+          // one marker per banded side, attached to the dimension that side belongs to
+          const lengthMarks = [side.top, side.bottom].filter(Boolean) as string[];
+          const widthMarks = [side.left, side.right].filter(Boolean) as string[];
 
           const pieceFs = Math.min(fs, p.width * 0.28, p.length * 0.28);
           const tiny = pieceFs < fs * 0.32;
@@ -123,11 +126,9 @@ export function CuttingSheetView({
           const thinH = !tiny && p.width < fs * 3.4;
           const thinV = !tiny && !thinH && p.length < fs * 3.4;
           const bw = Math.min(fs * 0.13, p.width * 0.1, p.length * 0.1);
-          const codeFs = Math.min(fs * 0.85, p.width * 0.17, p.length * 0.17);
-          const showCodes = showSizes && !thinH && !thinV && codeFs > fs * 0.2;
           const cx = x + p.length / 2;
           const cy = y + p.width / 2;
-          const combined = `${fmt(p.length)}x${fmt(p.width)}${banded.length ? "  " + Array.from(new Set(banded)).join(" ") : ""}`;
+          const combined = `${fmt(p.length)}x${fmt(p.width)}${banded.length ? "  " + Array.from(new Set(banded)).join(" ") : ""}`;
 
           return (
             <g key={`${p.ref}-${i}`}>
@@ -154,9 +155,14 @@ export function CuttingSheetView({
                 <>
                   {showSizes && (
                     <>
+                      {/* length: markers of the top / bottom bands sit right beside the number */}
                       <text x={cx} y={y + pieceFs * 1.15} textAnchor="middle" fontSize={pieceFs} fill="#111">
                         {fmt(p.length)}
+                        {lengthMarks.length > 0 && (
+                          <tspan dx={pieceFs * 0.45} fill="#c2410c" fontWeight="700" fontSize={pieceFs * 0.9}>{`  ${lengthMarks.join(" ")}`}</tspan>
+                        )}
                       </text>
+                      {/* width: markers of the left / right bands */}
                       <text
                         x={x + pieceFs * 1.15}
                         y={cy}
@@ -166,6 +172,9 @@ export function CuttingSheetView({
                         transform={`rotate(-90 ${x + pieceFs * 1.15} ${cy})`}
                       >
                         {fmt(p.width)}
+                        {widthMarks.length > 0 && (
+                          <tspan dx={pieceFs * 0.45} fill="#c2410c" fontWeight="700" fontSize={pieceFs * 0.9}>{`  ${widthMarks.join(" ")}`}</tspan>
+                        )}
                       </text>
                     </>
                   )}
@@ -183,41 +192,6 @@ export function CuttingSheetView({
                     </text>
                   )}
 
-                  {/* the band marker (e.g. # or HD) sits on each banded side only */}
-                  {showCodes && side.top && (
-                    <text x={cx} y={y + pieceFs * 1.15 + codeFs * 1.25} textAnchor="middle" fontSize={codeFs} fill="#9a3412">
-                      {side.top}
-                    </text>
-                  )}
-                  {showCodes && side.bottom && (
-                    <text x={cx} y={y + p.width - bw - codeFs * 0.35} textAnchor="middle" fontSize={codeFs} fill="#9a3412">
-                      {side.bottom}
-                    </text>
-                  )}
-                  {showCodes && side.left && (
-                    <text
-                      x={x + pieceFs * 1.15 + codeFs * 1.25}
-                      y={cy}
-                      textAnchor="middle"
-                      fontSize={codeFs}
-                      fill="#9a3412"
-                      transform={`rotate(-90 ${x + pieceFs * 1.15 + codeFs * 1.25} ${cy})`}
-                    >
-                      {side.left}
-                    </text>
-                  )}
-                  {showCodes && side.right && (
-                    <text
-                      x={x + p.length - bw - codeFs * 0.35}
-                      y={cy}
-                      textAnchor="middle"
-                      fontSize={codeFs}
-                      fill="#9a3412"
-                      transform={`rotate(-90 ${x + p.length - bw - codeFs * 0.35} ${cy})`}
-                    >
-                      {side.right}
-                    </text>
-                  )}
                 </>
               )}
             </g>
