@@ -4,7 +4,7 @@ import { GalleryGrid } from "@/components/public/gallery-grid";
 export const dynamic = "force-dynamic";
 
 // Media-library folders whose images appear on the public gallery
-const GALLERY_FOLDERS = ["gallery", "uploads", "projects"];
+const GALLERY_FOLDERS = ["gallery", "uploads"];
 
 export default async function GalleryPage() {
   const [projects, media] = await Promise.all([
@@ -28,10 +28,10 @@ export default async function GalleryPage() {
 
   // Newest uploads first, then the project photos
   for (const m of media) {
-    if (m.folder === "projects") continue; // shown below with their project name
     push(m.id, m.url, m.altText ?? m.filename, m.altText ?? "");
   }
   for (const p of projects) {
+    if (p.coverImage) push(`cover-${p.id}`, p.coverImage, p.name, p.name);
     for (const img of p.images) push(img.id, img.url, img.altText ?? p.name, p.name);
   }
 

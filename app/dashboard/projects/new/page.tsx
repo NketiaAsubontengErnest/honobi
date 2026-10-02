@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createProject } from "@/actions/projects";
+import { ImageUploadField } from "@/components/dashboard/image-upload-field";
 
 const STATUSES = ["PLANNING", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map((s) => ({
   value: s,
@@ -74,8 +75,8 @@ export default function NewProjectPage() {
                 <Input id="completionDate" name="completionDate" type="date" />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="coverImage">Cover Image URL</Label>
-                <Input id="coverImage" name="coverImage" placeholder="https://..." />
+                <Label>Cover Image</Label>
+                <ImageUploadField name="coverImage" target="project" />
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="materialsUsed">Materials Used</Label>

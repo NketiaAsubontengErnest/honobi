@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { getSessionUser } from "@/lib/auth/guard";
 import { hasPermission } from "@/lib/permissions";
-import { syncUsedImagesToMedia } from "@/lib/media/sync";
 import { MediaClient } from "./media-client";
 
 export const dynamic = "force-dynamic";
@@ -11,11 +10,8 @@ export default async function MediaPage() {
   const canUpload = !!user && hasPermission(user.role, "media:upload");
   const canDelete = !!user && hasPermission(user.role, "media:delete");
 
-  // Make sure every image used on the website (projects, products, services) is listed here
-  await syncUsedImagesToMedia();
-
   const media = await prisma.media.findMany({
-    where: { isActive: true },
+    where: { isActive: true, NOT: { folder: { in: ["projects", "products", "services"] } } },
     orderBy: { createdAt: "desc" },
   });
   const serialized = media.map((m: typeof media[0]) => ({

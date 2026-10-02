@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createService, updateService } from "@/actions/services";
+import { ImageUploadField } from "@/components/dashboard/image-upload-field";
 
 export type ServiceFormInitial = {
   id: string;
@@ -79,8 +80,8 @@ export function ServiceForm({
                 <Input id="order" name="order" type="number" min="0" defaultValue={initial?.order ?? 0} />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="image">Image URL</Label>
-                <Input id="image" name="image" defaultValue={initial?.image} placeholder="https://..." />
+                <Label>Service Image</Label>
+                <ImageUploadField name="image" target="service" initialUrl={initial?.image} />
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="icon">Icon Name</Label>

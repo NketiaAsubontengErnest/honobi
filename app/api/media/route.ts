@@ -14,16 +14,26 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "You must be signed in" }, { status: 401 });
-  if (!hasPermission(user.role, "media:upload")) {
-    return NextResponse.json({ error: "You are not allowed to upload media" }, { status: 403 });
-  }
-
   let form: FormData;
   try {
     form = await req.formData();
   } catch {
     return NextResponse.json({ error: "Invalid upload" }, { status: 400 });
   }
+
+  // "media" = Media library upload. "project" / "service" = an image attached to a project or
+  // service form: allowed for people who can edit those, and NOT listed in the media library.
+  const target = String(form.get("target") ?? "media");
+  const allowed =
+    target === "project"
+      ? hasPermission(user.role, "projects:create") || hasPermission(user.role, "projects:edit")
+      : target === "service"
+        ? hasPermission(user.role, "services:create") || hasPermission(user.role, "services:edit")
+        : hasPermission(user.role, "media:upload");
+  if (!allowed) {
+    return NextResponse.json({ error: "You are not allowed to upload images here" }, { status: 403 });
+  }
+  const registerInLibrary = target !== "project" && target !== "service";
 
   const files = form.getAll("files").filter((f): f is File => f instanceof File);
   if (files.length === 0) return NextResponse.json({ error: "No files received" }, { status: 400 });
@@ -64,14 +74,16 @@ export async function POST(req: NextRequest) {
       url = `/uploads/${month}/${stored}`;
     }
     const originalName = path.basename(file.name).replace(/[^\w.\- ]+/g, "_").slice(0, 120) || stored;
-    await prisma.media.create({
-      data: { url, filename: originalName, mimeType: mime, size: buf.length, folder, uploadedById: user.id },
-    });
+    if (registerInLibrary) {
+      await prisma.media.create({
+        data: { url, filename: originalName, mimeType: mime, size: buf.length, folder, uploadedById: user.id },
+      });
+    }
     saved.push({ filename: originalName, url });
   }
 
   if (saved.length) {
-    await logAudit({ userId: user.id, action: "UPLOAD", entity: "media", metadata: { files: saved.map((f) => f.filename) } });
+    await logAudit({ userId: user.id, action: "UPLOAD", entity: registerInLibrary ? "media" : target, metadata: { files: saved.map((f) => f.filename) } });
   }
 
   const status = saved.length === 0 ? 400 : 200;
