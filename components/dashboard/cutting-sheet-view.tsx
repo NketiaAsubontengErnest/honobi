@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useId } from "react";
 import type { BoardLayout, OptimizerResult } from "@/lib/cutting-optimizer";
 
 export interface SheetGroup {
@@ -46,6 +46,7 @@ export function CuttingSheetView({
   trim,
   refOrder,
   edges = {},
+  mono = false,
   showSizes,
   showLabels,
   usableLength,
@@ -57,6 +58,8 @@ export function CuttingSheetView({
   trim: { top: number; bottom: number; left: number; right: number };
   refOrder: string[];
   edges?: EdgeBands;
+  /** black-and-white drawing for printing */
+  mono?: boolean;
   showSizes: boolean;
   showLabels: boolean;
   usableLength: number;
@@ -68,7 +71,7 @@ export function CuttingSheetView({
   const margin = fs * 3.2;
   const vbW = boardLength + margin * 2;
   const vbH = boardWidth + margin * 2;
-  const hatchId = useMemo(() => `hatch-${layout.boardIndex}-${Math.round(boardLength)}`, [layout.boardIndex, boardLength]);
+  const hatchId = `hatch${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
   return (
     <svg viewBox={`0 0 ${vbW} ${vbH}`} className="h-auto w-full bg-white" role="img" aria-label={`Cutting layout for sheet ${layout.boardIndex}`}>
@@ -97,10 +100,10 @@ export function CuttingSheetView({
 
       <g transform={`translate(${margin} ${margin})`}>
         {/* whole sheet = waste (hatched) with a red outline */}
-        <rect x={0} y={0} width={boardLength} height={boardWidth} fill={`url(#${hatchId})`} stroke="#dc2626" strokeWidth={fs * 0.14} />
+        <rect x={0} y={0} width={boardLength} height={boardWidth} fill={`url(#${hatchId})`} stroke={mono ? "#000" : "#dc2626"} strokeWidth={fs * 0.14} />
         {/* usable area outline (inside the trim) */}
         {(trim.left > 0 || trim.right > 0 || trim.top > 0 || trim.bottom > 0) && (
-          <rect x={trim.left} y={trim.top} width={usableLength} height={usableWidth} fill="none" stroke="#16a34a" strokeWidth={fs * 0.08} strokeDasharray={`${fs * 0.5} ${fs * 0.35}`} />
+          <rect x={trim.left} y={trim.top} width={usableLength} height={usableWidth} fill="none" stroke={mono ? "#6b7280" : "#16a34a"} strokeWidth={fs * 0.08} strokeDasharray={`${fs * 0.5} ${fs * 0.35}`} />
         )}
 
         {/* pieces */}
@@ -139,7 +142,7 @@ export function CuttingSheetView({
 
           return (
             <g key={`${p.ref}-${i}`}>
-              <rect x={x} y={y} width={p.length} height={p.width} fill={tint(idx)} stroke="#15803d" strokeWidth={fs * 0.1} />
+              <rect x={x} y={y} width={p.length} height={p.width} fill={mono ? "#fff" : tint(idx)} stroke={mono ? "#000" : "#15803d"} strokeWidth={fs * 0.1} />
 
               {!tiny && thinH && showSizes && (
                 <text x={cx} y={cy + Math.min(fs, p.width * 0.5) * 0.35} textAnchor="middle" fontSize={Math.min(fs, p.width * 0.5)} fill="#111">

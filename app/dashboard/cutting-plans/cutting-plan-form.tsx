@@ -1321,6 +1321,11 @@ export function CuttingPlanForm({
           unit={unit}
           planName={planName}
           materialName={materialName}
+          boardLength={parseFloat(boardLength) || result.usableLength}
+          boardWidth={parseFloat(boardWidth) || result.usableWidth}
+          trim={{ top: effTrim.trimTop, bottom: effTrim.trimBottom, left: effTrim.trimLeft, right: effTrim.trimRight }}
+          edges={edgeMap}
+          refOrder={refOrder}
         />
       )}
     </div>
