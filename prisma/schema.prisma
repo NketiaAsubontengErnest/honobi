@@ -991,6 +991,11 @@ model CuttingPlan {
   supplierId      String?
   customerName    String?
 
+  // Stock: optional link to a cutting material; boards used can be deducted from its stock
+  materialId      String?
+  deductStock     Boolean             @default(false)
+  stockDeducted   Int                 @default(0)
+
   // Stock board / sheet settings
   materialName    String
   materialType    BoardMaterialType   @default(MDF)
@@ -1032,6 +1037,7 @@ model CuttingPlan {
   project         Project?            @relation(fields: [projectId], references: [id])
   job             Job?                @relation(fields: [jobId], references: [id])
   supplier        Supplier?           @relation(fields: [supplierId], references: [id])
+  material        CuttingMaterial?    @relation(fields: [materialId], references: [id])
   createdBy       User?               @relation(fields: [createdById], references: [id])
   pieces          CuttingPiece[]
 
@@ -1039,6 +1045,27 @@ model CuttingPlan {
   @@index([projectId])
   @@index([jobId])
   @@index([planNumber])
+}
+
+// A board / sheet type kept in stock for cutting (e.g. GREY BOARD 2420 x 1200 x 18)
+model CuttingMaterial {
+  id            String            @id @default(uuid())
+  name          String
+  materialType  BoardMaterialType @default(MDF)
+  length        Decimal           @db.Decimal(10, 2)
+  width         Decimal           @db.Decimal(10, 2)
+  thickness     Decimal?          @db.Decimal(10, 2)
+  unit          String            @default("mm")
+  quantity      Int               @default(0)
+  price         Decimal?          @db.Decimal(12, 2)
+  notes         String?
+  isActive      Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  plans         CuttingPlan[]
+
+  @@index([name])
 }
 
 model CuttingPiece {

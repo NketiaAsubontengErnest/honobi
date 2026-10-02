@@ -20,6 +20,7 @@ import {
   updateCuttingPlanStatus,
 } from "@/actions/cutting-plans";
 import { hasPermission } from "@/lib/permissions";
+import type { CuttingMaterialRow } from "@/actions/cutting-materials";
 import { optimizeCuttingPlan, type OptimizerResult, type GrainOption } from "@/lib/cutting-optimizer";
 import { Check, Download, FileSpreadsheet, Plus, Trash2, Eraser, Play, Printer, Sparkles, Save, Upload } from "lucide-react";
 import type { BoardPreset } from "@prisma/client";
@@ -51,6 +52,9 @@ export type InitialPlanData = {
   jobId: string | null;
   supplierId: string | null;
   customerName: string | null;
+  materialId?: string | null;
+  deductStock?: boolean;
+  stockDeducted?: number;
   materialName: string;
   materialType: string;
   boardLength: number;
@@ -173,6 +177,7 @@ export function CuttingPlanForm({
   jobs,
   suppliers,
   presets: initialPresets,
+  materials = [],
   userRole,
 }: {
   mode: "create" | "edit";
@@ -181,6 +186,7 @@ export function CuttingPlanForm({
   jobs: Option[];
   suppliers: Option[];
   presets: (BoardPreset & { length: number; width: number; thickness: number | null })[];
+  materials?: CuttingMaterialRow[];
   userRole: string;
 }) {
   const router = useRouter();
@@ -201,6 +207,8 @@ export function CuttingPlanForm({
   const [boardPrice, setBoardPrice] = useState(String(initialData?.boardPrice ?? ""));
   const [supplierId, setSupplierId] = useState(initialData?.supplierId ?? "");
   const [notes, setNotes] = useState(initialData?.notes ?? "");
+  const [materialId, setMaterialId] = useState(initialData?.materialId ?? "");
+  const [deductStock, setDeductStock] = useState(initialData?.deductStock ?? false);
 
   // ---------- Section B: cutting settings ----------
   const [kerf, setKerf] = useState(String(initialData?.kerf ?? "3"));
@@ -413,6 +421,8 @@ export function CuttingPlanForm({
         projectId: projectId || null,
         jobId: jobId || null,
         supplierId: supplierId || null,
+        materialId: materialId || null,
+        deductStock: !!materialId && deductStock,
         customerName: customerName.trim() || null,
         materialName: materialName.trim(),
         materialType,
@@ -739,6 +749,33 @@ export function CuttingPlanForm({
   const activeIndex = Math.min(tab, Math.max(0, groups.length - 1));
   const activeGroup = groups[activeIndex];
   const refOrder = useMemo(() => rows.map((r) => r.key), [rows]);
+
+  // ---------- cutting material / stock ----------
+  const selectedMaterial = materials.find((m) => m.id === materialId) ?? null;
+  // A plan that already deducted sheets from this material "holds" them, so they count as available to it
+  const heldByThisPlan = initialData && initialData.materialId === materialId ? initialData.stockDeducted ?? 0 : 0;
+  const availableStock = selectedMaterial ? selectedMaterial.quantity + heldByThisPlan : null;
+  const sheetsNeeded = result?.boardsUsed ?? 0;
+
+  const chooseMaterial = (id: string) => {
+    setMaterialId(id);
+    const m = materials.find((x) => x.id === id);
+    if (!m) {
+      setDeductStock(false);
+      return;
+    }
+    const held = initialData && initialData.materialId === id ? initialData.stockDeducted ?? 0 : 0;
+    setMaterialName(m.name);
+    setMaterialType(m.materialType);
+    setBoardLength(String(m.length));
+    setBoardWidth(String(m.width));
+    setBoardThickness(m.thickness === null ? "" : String(m.thickness));
+    setUnit(m.unit);
+    if (m.price !== null) setBoardPrice(String(m.price));
+    // the quantity cell shows what is in stock (0 = no limit)
+    setBoardQuantity(String(m.quantity + held));
+    setResult(null);
+  };
   const edgeMap = useMemo<EdgeBands>(
     () => Object.fromEntries(rows.map((r) => [r.key, { top: r.edgeTop.trim(), left: r.edgeLeft.trim(), bottom: r.edgeBottom.trim(), right: r.edgeRight.trim() }])),
     [rows]
@@ -815,6 +852,9 @@ export function CuttingPlanForm({
           {mode === "edit" && (status === "PRINTED" || status === "GENERATED") && (
             <Button size="sm" variant="secondary" onClick={() => changeStatus("COMPLETED")}>Complete</Button>
           )}
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/cutting-plans/materials">Materials</Link>
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link href="/dashboard/cutting-plans">Back</Link>
           </Button>
@@ -1011,6 +1051,58 @@ export function CuttingPlanForm({
                 <Save className="h-4 w-4 text-slate-600" /> Save size
               </button>
             </div>
+            <div className="space-y-2 border-b bg-white p-3">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="min-w-56 flex-1 space-y-1">
+                  <Label className="text-xs" htmlFor="materialPick">Cutting material</Label>
+                  <Select
+                    id="materialPick"
+                    value={materialId}
+                    onChange={(e) => chooseMaterial(e.target.value)}
+                    options={[
+                      { value: "", label: "— Custom size (not from the list) —" },
+                      ...materials.map((m) => ({
+                        value: m.id,
+                        label: `${m.name} · ${m.length}×${m.width}${m.thickness ? "×" + m.thickness : ""} · ${m.quantity} in stock`,
+                      })),
+                    ]}
+                  />
+                </div>
+                <Link href="/dashboard/cutting-plans/materials" className="pb-2 text-xs text-primary underline">
+                  Manage materials
+                </Link>
+              </div>
+
+              {selectedMaterial && (
+                <div className="space-y-2 rounded-md border bg-slate-50 p-2 text-sm">
+                  <p>
+                    In stock:{" "}
+                    <strong className={availableStock === 0 ? "text-destructive" : ""}>
+                      {availableStock} sheet{availableStock === 1 ? "" : "s"}
+                    </strong>
+                    {availableStock === 0 && <span className="ml-1 text-xs text-destructive">(out of stock)</span>}
+                  </p>
+                  <label className="flex items-start gap-2 text-sm">
+                    <input type="checkbox" className="mt-0.5 h-4 w-4" checked={deductStock} onChange={(e) => setDeductStock(e.target.checked)} />
+                    <span>
+                      <strong>Deduct the sheets this plan uses from stock</strong> when I press Accept
+                      <span className="block text-xs text-muted-foreground">
+                        Leave unticked to plan without changing stock. Changing or archiving the plan later returns the sheets.
+                      </span>
+                    </span>
+                  </label>
+                  {result && deductStock && availableStock !== null && (
+                    <p className={sheetsNeeded > availableStock ? "text-sm font-medium text-destructive" : "text-sm text-muted-foreground"}>
+                      This plan uses <strong>{sheetsNeeded}</strong> sheet{sheetsNeeded === 1 ? "" : "s"} →{" "}
+                      {sheetsNeeded > availableStock
+                        ? `not enough stock (short by ${sheetsNeeded - availableStock})`
+                        : `stock after: ${availableStock - sheetsNeeded}`}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-sm">
                 <thead>

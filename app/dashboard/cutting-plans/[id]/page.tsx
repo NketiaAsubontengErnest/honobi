@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { getCuttingMaterials } from "@/actions/cutting-materials";
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/permissions";
@@ -22,7 +23,7 @@ export default async function CuttingPlanDetailPage({
   const plan = await getCuttingPlanById(id);
   if (!plan) notFound();
 
-  const [projects, jobs, suppliers, presets] = await Promise.all([
+  const [projects, jobs, suppliers, presets, materials] = await Promise.all([
     prisma.project.findMany({
       where: { isActive: true },
       select: { id: true, name: true },
@@ -39,6 +40,7 @@ export default async function CuttingPlanDetailPage({
       orderBy: { name: "asc" },
     }),
     getBoardPresets(),
+    getCuttingMaterials(),
   ]);
 
   return (
@@ -50,6 +52,7 @@ export default async function CuttingPlanDetailPage({
       jobs={jobs.map((j: { id: string; jobNumber: string; title: string }) => ({ value: j.id, label: `${j.jobNumber} — ${j.title}` }))}
       suppliers={suppliers.map((s: { id: string; name: string }) => ({ value: s.id, label: s.name }))}
       presets={presets}
+      materials={materials}
     />
   );
 }

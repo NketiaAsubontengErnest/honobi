@@ -279,6 +279,8 @@ export const cuttingPlanSchema = z.object({
   name: z.string().min(2, "Plan name is required"),
   projectId: z.string().nullish(),
   jobId: z.string().nullish(),
+  materialId: z.string().nullish(),
+  deductStock: z.boolean().default(false),
   supplierId: z.string().nullish(),
   customerName: z.string().nullish(),
 

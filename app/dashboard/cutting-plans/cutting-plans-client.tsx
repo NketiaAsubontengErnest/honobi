@@ -287,7 +287,10 @@ export function CuttingPlansClient({
         )}
       />
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" asChild>
+          <Link href="/dashboard/cutting-plans/materials">Materials</Link>
+        </Button>
         <Button asChild>
           <Link href="/dashboard/cutting-plans/new">
             <Plus className="h-4 w-4 mr-2" /> Create New Cutting Plan

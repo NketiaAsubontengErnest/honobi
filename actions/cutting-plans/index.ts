@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { generateNumber } from "@/lib/utils";
 import { cuttingPlanSchema, boardPresetSchema } from "@/lib/validation/schemas";
+import { syncStock } from "@/lib/cutting/stock";
 import { requirePermissionServer } from "@/lib/auth/guard";
 import { optimizeCuttingPlan, type OptimizerResult } from "@/lib/cutting-optimizer";
 
@@ -117,6 +118,8 @@ type PlanInput = {
   allowRotation: boolean;
   grainStrategy: string;
   strategy: string;
+  materialId?: string | null;
+  deductStock?: boolean;
   pieces: {
     name: string;
     length: number;
@@ -142,6 +145,8 @@ function buildData(input: PlanInput, layout?: OptimizerResult | null): Record<st
     projectId: validated.projectId || null,
     jobId: validated.jobId || null,
     supplierId: validated.supplierId || null,
+    materialId: validated.materialId || null,
+    deductStock: !!validated.materialId && validated.deductStock,
     customerName: validated.customerName || null,
     materialName: validated.materialName,
     materialType: validated.materialType as never,
@@ -198,13 +203,17 @@ function buildData(input: PlanInput, layout?: OptimizerResult | null): Record<st
 export async function createCuttingPlan(input: PlanInput) {
   const user = await requirePermissionServer("cuttingPlans:create");
   const data = buildData(input, input.result ?? null);
-  return prisma.cuttingPlan.create({
-    data: {
-      ...data,
-      planNumber: generateNumber("CUT"),
-      createdById: user.id,
-    } as never,
-    select: { id: true, planNumber: true },
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.cuttingPlan.create({
+      data: {
+        ...data,
+        planNumber: generateNumber("CUT"),
+        createdById: user.id,
+      } as never,
+      select: { id: true, planNumber: true },
+    });
+    await syncStock(tx, created.id, { materialId: null, stockDeducted: 0 });
+    return created;
   });
 }
 
@@ -212,11 +221,17 @@ export async function updateCuttingPlan(id: string, input: PlanInput) {
   await requirePermissionServer("cuttingPlans:edit");
   const data = buildData(input, input.result ?? null);
   const { pieces, ...rest } = data;
-  await prisma.cuttingPiece.deleteMany({ where: { planId: id } });
-  return prisma.cuttingPlan.update({
-    where: { id },
-    data: { ...rest, pieces } as never,
-    select: { id: true, planNumber: true },
+  return prisma.$transaction(async (tx) => {
+    const before = await tx.cuttingPlan.findUnique({ where: { id }, select: { materialId: true, stockDeducted: true } });
+    if (!before) throw new Error("Cutting plan not found");
+    await tx.cuttingPiece.deleteMany({ where: { planId: id } });
+    const updated = await tx.cuttingPlan.update({
+      where: { id },
+      data: { ...rest, pieces } as never,
+      select: { id: true, planNumber: true },
+    });
+    await syncStock(tx, id, before);
+    return updated;
   });
 }
 
@@ -250,7 +265,8 @@ export async function generateCuttingPlan(id: string): Promise<OptimizerResult> 
     }
   );
 
-  await prisma.cuttingPlan.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.cuttingPlan.update({
     where: { id },
     data: {
       status: "GENERATED",
@@ -264,6 +280,8 @@ export async function generateCuttingPlan(id: string): Promise<OptimizerResult> 
       unplacedPieces: result.unplaced as never,
       generatedAt: new Date(),
     },
+    });
+    await syncStock(tx, id, { materialId: plan.materialId, stockDeducted: plan.stockDeducted });
   });
 
   return result;
@@ -294,6 +312,8 @@ export async function duplicateCuttingPlan(id: string) {
       layout: rest.layout ?? undefined,
       name: `${plan.name} (Copy)`,
       status: "DRAFT",
+      stockDeducted: 0,
+      deductStock: false,
       planNumber: generateNumber("CUT"),
       createdById: user.id,
       pieces: {
@@ -309,10 +329,17 @@ export async function duplicateCuttingPlan(id: string) {
 
 export async function deleteCuttingPlan(id: string) {
   await requirePermissionServer("cuttingPlans:delete");
-  return prisma.cuttingPlan.update({
-    where: { id },
-    data: { isActive: false, status: "ARCHIVED" },
-    select: { id: true },
+  // Archiving gives any deducted sheets back to the material stock
+  return prisma.$transaction(async (tx) => {
+    const before = await tx.cuttingPlan.findUnique({ where: { id }, select: { materialId: true, stockDeducted: true } });
+    if (!before) throw new Error("Cutting plan not found");
+    const archived = await tx.cuttingPlan.update({
+      where: { id },
+      data: { isActive: false, status: "ARCHIVED" },
+      select: { id: true },
+    });
+    await syncStock(tx, id, before);
+    return archived;
   });
 }
 
