@@ -1,16 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, PackagePlus, ArrowLeft } from "lucide-react";
+import { Plus, Pencil, Trash2, PackagePlus, ArrowLeft, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { flashError } from "@/lib/utils/flash";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -62,6 +61,14 @@ export function MaterialsClient({
   const [busy, setBusy] = useState(false);
   const [adjustId, setAdjustId] = useState<string | null>(null);
   const [adjustValue, setAdjustValue] = useState("");
+
+  // Esc closes the canvas
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !busy && setEditing(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editing, busy]);
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
 
@@ -159,56 +166,73 @@ export function MaterialsClient({
         </div>
       </div>
 
+      {/* Add / edit canvas (slides in from the right) */}
       {editing && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{editing === "new" ? "Add cutting material" : "Edit cutting material"}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div className="space-y-1 md:col-span-2">
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40" onClick={() => !busy && setEditing(null)} />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label={editing === "new" ? "Add cutting material" : "Edit cutting material"}
+            className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-background shadow-2xl"
+          >
+            <header className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <h2 className="text-base font-semibold">{editing === "new" ? "Add cutting material" : "Edit cutting material"}</h2>
+                <p className="text-xs text-muted-foreground">A board or sheet you cut from, with how many you have.</p>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setEditing(null)} disabled={busy} aria-label="Close">
+                <X className="h-4 w-4" />
+              </Button>
+            </header>
+
+            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              <div className="space-y-1">
                 <Label htmlFor="m-name">Material name *</Label>
-                <Input id="m-name" value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. GREY BOARD" />
+                <Input id="m-name" autoFocus value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. GREY BOARD" />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="m-type">Type</Label>
                 <Select id="m-type" value={form.materialType} onChange={(e) => set({ materialType: e.target.value })} options={TYPES} />
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="m-length">Sheet length *</Label>
-                <Input id="m-length" type="number" step="any" value={form.length} onChange={(e) => set({ length: e.target.value })} />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="m-length">Sheet length *</Label>
+                  <Input id="m-length" type="number" step="any" value={form.length} onChange={(e) => set({ length: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="m-width">Sheet width *</Label>
+                  <Input id="m-width" type="number" step="any" value={form.width} onChange={(e) => set({ width: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="m-thick">Thickness</Label>
+                  <Input id="m-thick" type="number" step="any" value={form.thickness} onChange={(e) => set({ thickness: e.target.value })} placeholder="18" />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="m-unit">Unit</Label>
+                  <Select id="m-unit" value={form.unit} onChange={(e) => set({ unit: e.target.value })} options={UNITS} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="m-qty">Sheets in stock</Label>
+                  <Input id="m-qty" type="number" min="0" step="1" value={form.quantity} onChange={(e) => set({ quantity: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="m-price">Price per sheet (GHS)</Label>
+                  <Input id="m-price" type="number" step="0.01" min="0" value={form.price} onChange={(e) => set({ price: e.target.value })} placeholder="0.00" />
+                </div>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="m-width">Sheet width *</Label>
-                <Input id="m-width" type="number" step="any" value={form.width} onChange={(e) => set({ width: e.target.value })} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="m-thick">Thickness</Label>
-                <Input id="m-thick" type="number" step="any" value={form.thickness} onChange={(e) => set({ thickness: e.target.value })} placeholder="18" />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="m-unit">Unit</Label>
-                <Select id="m-unit" value={form.unit} onChange={(e) => set({ unit: e.target.value })} options={UNITS} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="m-qty">Sheets in stock</Label>
-                <Input id="m-qty" type="number" min="0" step="1" value={form.quantity} onChange={(e) => set({ quantity: e.target.value })} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="m-price">Price per sheet (GHS)</Label>
-                <Input id="m-price" type="number" step="0.01" min="0" value={form.price} onChange={(e) => set({ price: e.target.value })} placeholder="0.00" />
-              </div>
-              <div className="space-y-1 md:col-span-3">
                 <Label htmlFor="m-notes">Notes</Label>
-                <Textarea id="m-notes" rows={2} value={form.notes} onChange={(e) => set({ notes: e.target.value })} placeholder="Supplier, grade, colour…" />
+                <Textarea id="m-notes" rows={3} value={form.notes} onChange={(e) => set({ notes: e.target.value })} placeholder="Supplier, grade, colour…" />
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save material"}</Button>
+
+            <footer className="flex gap-2 border-t px-5 py-4">
+              <Button className="flex-1" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save material"}</Button>
               <Button variant="outline" onClick={() => setEditing(null)} disabled={busy}>Cancel</Button>
-            </div>
-          </CardContent>
-        </Card>
+            </footer>
+          </aside>
+        </>
       )}
 
       <div className="overflow-x-auto rounded-lg border">
