@@ -491,15 +491,8 @@ async function main() {
   console.log("Job and board presets created");
 
   console.log("\nDatabase seeded successfully!");
-  console.log("\n=== LOGIN CREDENTIALS (DEVELOPMENT ONLY) ===");
-  console.log("Super Admin:  admin@honobi.com / Admin@123!");
-  console.log("Shop Admin:   shop@honobi.com / Admin@123!");
-  console.log("Manager:      manager@honobi.com / Manager@123!");
-  console.log("Accountant:   accounts@honobi.com / Account@123!");
-  console.log("Secretary:    secretary@honobi.com / Secretary@123!");
-  console.log("Staff:        staff@honobi.com / Staff@123!");
-  console.log("Storekeeper:  storekeeper@honobi.com / Staff@123!");
-  console.log("=============================================\n");
+  console.log("\nSeed users (all @honobi.com): admin (Super Admin), shop (Admin), manager, accounts, secretary, staff, storekeeper.");
+  console.log("New accounts use the password printed at the start; existing accounts keep theirs.\n");
 }
 
 main()
