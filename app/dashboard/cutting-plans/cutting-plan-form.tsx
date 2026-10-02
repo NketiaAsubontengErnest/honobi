@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { CuttingPrintPanel } from "@/components/dashboard/cutting-print-panel";
+import { CuttingSheetView, groupIdenticalBoards } from "@/components/dashboard/cutting-sheet-view";
 import {
   createCuttingPlan,
   updateCuttingPlan,
@@ -20,7 +21,7 @@ import {
 } from "@/actions/cutting-plans";
 import { hasPermission } from "@/lib/permissions";
 import { optimizeCuttingPlan, type OptimizerResult, type GrainOption } from "@/lib/cutting-optimizer";
-import { Download, FileJson, FileSpreadsheet, Plus, Copy, Trash2, Eraser, Printer, Sparkles, Save, Upload } from "lucide-react";
+import { Check, Download, FileSpreadsheet, Plus, Trash2, Eraser, Play, Printer, Sparkles, Save, Upload } from "lucide-react";
 import type { BoardPreset } from "@prisma/client";
 
 type Option = { value: string; label: string };
@@ -233,6 +234,15 @@ export function CuttingPlanForm({
   const [presets, setPresets] = useState(initialPresets);
   const [status, setStatus] = useState(initialData?.status ?? "DRAFT");
 
+  // workspace view state
+  const [selected, setSelected] = useState<string | null>(null);
+  const [showSizes, setShowSizes] = useState(true);
+  const [showLabels, setShowLabels] = useState(true);
+  const [showStats, setShowStats] = useState(false);
+  const [tab, setTab] = useState(0);
+  const [zoom, setZoom] = useState(100);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
   const effTrim = useMemo(() => {
     if (uniformTrim) {
       const v = parseFloat(trimUniformVal) || 0;
@@ -340,6 +350,9 @@ export function CuttingPlanForm({
       const { pieces, settings } = buildOptimizerInput();
       const res = optimizeCuttingPlan(pieces, settings);
       setResult(res);
+      setTab(0);
+      if (res.unplaced.length) toast.warning(`${res.unplaced.length} piece type(s) could not be placed`);
+      else toast.success(`Layout ready: ${res.boardsUsed} sheet${res.boardsUsed === 1 ? "" : "s"}, ${res.efficiency}% utilization`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Optimization failed");
     } finally {
@@ -657,8 +670,36 @@ export function CuttingPlanForm({
   const can = (perm: Parameters<typeof hasPermission>[1]) => hasPermission(userRole, perm);
   const totalPieces = rows.reduce((s, r) => s + (parseInt(r.quantity) || 0), 0);
 
+  // ---------- workspace helpers ----------
+  const groups = useMemo(() => (result ? groupIdenticalBoards(result) : []), [result]);
+  const activeIndex = Math.min(tab, Math.max(0, groups.length - 1));
+  const activeGroup = groups[activeIndex];
+  const refOrder = useMemo(() => rows.map((r) => r.key), [rows]);
+
+  const appendRow = (focus = true) => {
+    const nr = emptyRow();
+    setRows((p) => [...p, nr]);
+    setSelected(nr.key);
+    if (focus) setTimeout(() => document.getElementById(`len-${nr.key}`)?.focus(), 0);
+  };
+  const deleteSelected = () => {
+    if (rows.length === 0) return;
+    const key = selected && rows.some((r) => r.key === selected) ? selected : rows[rows.length - 1].key;
+    removeRow(key);
+    setSelected(null);
+  };
+
+  const cell =
+    "h-8 w-full border-0 bg-transparent px-2 text-sm tabular-nums focus:bg-white focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary";
+  const th = "border border-sky-200 bg-sky-100 px-2 py-1 text-left text-xs font-semibold text-sky-900";
+  const tdBase = "border border-slate-200 p-0";
+  const toolBtn =
+    "flex min-w-14 flex-col items-center gap-0.5 rounded px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40";
+
+  const pricePerSheet = parseFloat(boardPrice) || 0;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 print:block">
         <div>
@@ -666,18 +707,13 @@ export function CuttingPlanForm({
             {mode === "edit" ? `Cutting Plan — ${initialData?.planNumber}` : "New Cutting Plan"}
           </h1>
           <p className="text-sm text-muted-foreground print:hidden">
-            Optimize how stock boards are cut into required pieces with minimum waste.
+            Enter the pieces and the stock sheet, press Start, and review each sheet on the right.
           </p>
         </div>
         <div className="flex items-center gap-2 print:hidden">
           {mode === "edit" && (
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[status] || ""}`}>
-              {status}
-            </span>
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[status] || ""}`}>{status}</span>
           )}
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="h-4 w-4 mr-2" /> Print
-          </Button>
           {mode === "edit" && can("cuttingPlans:approve") && status === "GENERATED" && (
             <Button size="sm" variant="secondary" onClick={() => changeStatus("APPROVED")}>Approve</Button>
           )}
@@ -693,140 +729,63 @@ export function CuttingPlanForm({
         </div>
       </div>
 
-      {error && <p className="text-sm text-destructive print:hidden">{error}</p>}
-
-      {/* ============ SECTION A: Stock board / sheet settings ============ */}
+      {/* Plan name + details */}
       <Card className="print:hidden">
-        <CardHeader>
-          <CardTitle className="text-base">A — Stock Board / Sheet Settings</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="planName">Plan Name *</Label>
+        <CardContent className="space-y-3 pt-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-64 flex-1 space-y-1">
+              <Label htmlFor="planName">Plan name *</Label>
               <Input id="planName" value={planName} onChange={(e) => setPlanName(e.target.value)} placeholder="Wardrobe set — Akwomia house" />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="project">Project</Label>
-              <Select id="project" value={projectId} onChange={(e) => setProjectId(e.target.value)} options={[{ value: "", label: "— None —" }, ...projects]} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="job">Job</Label>
-              <Select id="job" value={jobId} onChange={(e) => setJobId(e.target.value)} options={[{ value: "", label: "— None —" }, ...jobs]} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="materialName">Material Name *</Label>
-              <Input id="materialName" value={materialName} onChange={(e) => setMaterialName(e.target.value)} placeholder="MDF" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="materialType">Material Type</Label>
-              <Select id="materialType" value={materialType} onChange={(e) => setMaterialType(e.target.value)} options={MATERIALS} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="supplier">Supplier</Label>
-              <Select id="supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} options={[{ value: "", label: "— None —" }, ...suppliers]} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="boardLength">Board Length *</Label>
-              <Input id="boardLength" type="number" step="any" value={boardLength} onChange={(e) => setBoardLength(e.target.value)} placeholder="2440" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="boardWidth">Board Width *</Label>
-              <Input id="boardWidth" type="number" step="any" value={boardWidth} onChange={(e) => setBoardWidth(e.target.value)} placeholder="1220" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="boardThickness">Thickness</Label>
-              <Input id="boardThickness" type="number" step="any" value={boardThickness} onChange={(e) => setBoardThickness(e.target.value)} placeholder="18" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="boardQuantity">Quantity Available (0 = unlimited)</Label>
-              <Input id="boardQuantity" type="number" min="0" value={boardQuantity} onChange={(e) => setBoardQuantity(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="unit">Unit</Label>
-              <Select id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} options={UNITS} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="boardPrice">Board Price (GHS)</Label>
-              <Input id="boardPrice" type="number" step="0.01" value={boardPrice} onChange={(e) => setBoardPrice(e.target.value)} placeholder="180.00" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="customerName">Customer / Reference</Label>
-              <Input id="customerName" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Optional" />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea id="notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Board grade, grain side, etc." />
-            </div>
-          </div>
-
-          {/* Presets */}
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
-            <span className="text-xs font-semibold uppercase text-muted-foreground">Saved sizes:</span>
-            {presets.map((p) => (
-              <Button key={p.id} size="sm" variant="outline" type="button" onClick={() => applyPreset(p)}>
-                {p.name}
-              </Button>
-            ))}
-            <Button size="sm" variant="ghost" type="button" onClick={savePreset}>
-              <Save className="h-3 w-3 mr-1" /> Save current as preset
+            <Button type="button" variant="outline" size="sm" onClick={() => setDetailsOpen((o) => !o)}>
+              {detailsOpen ? "Hide details" : "Project, job & notes"}
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* ============ SECTION B: Cutting settings ============ */}
-      <Card className="print:hidden">
-        <CardHeader>
-          <CardTitle className="text-base">B — Cutting Settings</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="kerf">Saw Kerf ({unit})</Label>
-            <Input id="kerf" type="number" step="any" min="0" value={kerf} onChange={(e) => setKerf(e.target.value)} placeholder="3" />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label>Edge Trim ({unit})</Label>
-            <label className="flex items-center gap-2 text-sm mb-2">
-              <input type="checkbox" checked={uniformTrim} onChange={(e) => setUniformTrim(e.target.checked)} className="h-4 w-4" />
-              Uniform trim for all edges
-            </label>
-            {uniformTrim ? (
-              <Input type="number" step="any" min="0" value={trimUniformVal} onChange={(e) => setTrimUniformVal(e.target.value)} placeholder="0" />
-            ) : (
-              <div className="grid grid-cols-4 gap-2">
-                <Input aria-label="Top trim" type="number" step="any" min="0" value={trimTop} onChange={(e) => setTrimTop(e.target.value)} placeholder="Top" />
-                <Input aria-label="Bottom trim" type="number" step="any" min="0" value={trimBottom} onChange={(e) => setTrimBottom(e.target.value)} placeholder="Bottom" />
-                <Input aria-label="Left trim" type="number" step="any" min="0" value={trimLeft} onChange={(e) => setTrimLeft(e.target.value)} placeholder="Left" />
-                <Input aria-label="Right trim" type="number" step="any" min="0" value={trimRight} onChange={(e) => setTrimRight(e.target.value)} placeholder="Right" />
+          {detailsOpen && (
+            <div className="grid grid-cols-1 gap-3 border-t pt-3 md:grid-cols-3">
+              <div className="space-y-1">
+                <Label htmlFor="project">Project</Label>
+                <Select id="project" value={projectId} onChange={(e) => setProjectId(e.target.value)} options={[{ value: "", label: "— None —" }, ...projects]} />
               </div>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="direction">Cutting Direction</Label>
-            <Select id="direction" value={direction} onChange={(e) => setDirection(e.target.value)} options={DIRECTIONS} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="grainStrategy">Grain Direction (default)</Label>
-            <Select id="grainStrategy" value={grainStrategy} onChange={(e) => setGrainStrategy(e.target.value)} options={GRAINS} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="strategy">Cutting Strategy</Label>
-            <Select id="strategy" value={strategy} onChange={(e) => setStrategy(e.target.value)} options={STRATEGIES} />
-          </div>
-          <label className="flex items-center gap-2 text-sm md:col-span-3">
-            <input type="checkbox" checked={allowRotation} onChange={(e) => setAllowRotation(e.target.checked)} className="h-4 w-4" />
-            Allow piece rotation (global switch — per-piece rules still apply)
-          </label>
+              <div className="space-y-1">
+                <Label htmlFor="job">Job</Label>
+                <Select id="job" value={jobId} onChange={(e) => setJobId(e.target.value)} options={[{ value: "", label: "— None —" }, ...jobs]} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="supplier">Supplier</Label>
+                <Select id="supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} options={[{ value: "", label: "— None —" }, ...suppliers]} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="customerName">Customer / reference</Label>
+                <Input id="customerName" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Optional" />
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea id="notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Board grade, grain side, etc." />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* ============ SECTION C: Required pieces ============ */}
-      <Card className="print:hidden">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">C — Required Pieces ({totalPieces} total)</CardTitle>
-          <div className="flex flex-wrap gap-2">
-            <label className="inline-flex">
+      {error && <p className="text-sm text-destructive print:hidden">{error}</p>}
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)] print:hidden">
+        {/* ================= LEFT: PIECES + STOCK ================= */}
+        <div className="space-y-4">
+          {/* ---- PIECES ---- */}
+          <div className="overflow-hidden rounded-md border bg-white">
+            <div className="flex items-center gap-1 border-b bg-slate-50 px-2 py-1">
+              <span className="mr-2 rounded bg-sky-100 px-2 py-1 text-[11px] font-bold tracking-wide text-sky-900">PIECES</span>
+              <button type="button" className={toolBtn} onClick={() => appendRow()}>
+                <Plus className="h-4 w-4 text-green-600" /> Append
+              </button>
+              <button type="button" className={toolBtn} onClick={deleteSelected} disabled={rows.length === 0}>
+                <Trash2 className="h-4 w-4 text-red-600" /> Delete
+              </button>
+              <button type="button" className={toolBtn} onClick={() => fileRef.current?.click()}>
+                <Upload className="h-4 w-4 text-emerald-700" /> Import
+              </button>
               <input
                 ref={fileRef}
                 type="file"
@@ -837,170 +796,315 @@ export function CuttingPlanForm({
                   if (f) handleImportFile(f);
                 }}
               />
-              <span className="cursor-pointer inline-flex items-center gap-1 rounded-md border px-3 py-1 text-sm font-medium hover:bg-accent">
-                <Upload className="h-4 w-4" /> Import CSV / JSON
-              </span>
-            </label>
-            <Button size="sm" variant="outline" type="button" onClick={() => exportPieces("csv")}>
-              <FileSpreadsheet className="h-4 w-4 mr-1" /> Export CSV
-            </Button>
-            <Button size="sm" variant="outline" type="button" onClick={() => exportPieces("json")}>
-              <FileJson className="h-4 w-4 mr-1" /> Export JSON
-            </Button>
-            <Button size="sm" variant="ghost" type="button" onClick={() => setRows([emptyRow(), emptyRow(), emptyRow()])}>
-              <Eraser className="h-4 w-4 mr-1" /> Clear All
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {importErrors.length > 0 && (
-            <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-              <p className="font-semibold text-destructive mb-1">Import issues ({importErrors.length}):</p>
-              <ul className="list-disc pl-5 text-destructive/90 max-h-32 overflow-auto">
-                {importErrors.map((e, i) => <li key={i}>{e}</li>)}
-              </ul>
-            </div>
-          )}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b text-left text-xs uppercase text-muted-foreground">
-                  <th className="py-2 pr-2 w-24">Length *</th>
-                  <th className="py-2 pr-2 w-24">Width *</th>
-                  <th className="py-2 pr-2 w-20">Qty *</th>
-                  <th className="py-2 pr-2 w-24">Thick.</th>
-                  <th className="py-2 pr-2 w-36">Grain</th>
-                  <th className="py-2 pr-2 w-20">Rotate</th>
-                  <th className="py-2 pr-2">Notes</th>
-                  <th className="py-2 w-16"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.key} className="border-b align-middle">
-                    <td className="py-1 pr-2">
-                      <Input type="number" step="any" value={r.length} onChange={(e) => updateRow(r.key, { length: e.target.value })} />
-                    </td>
-                    <td className="py-1 pr-2">
-                      <Input type="number" step="any" value={r.width} onChange={(e) => updateRow(r.key, { width: e.target.value })} />
-                    </td>
-                    <td className="py-1 pr-2">
-                      <Input type="number" min="1" value={r.quantity} onChange={(e) => updateRow(r.key, { quantity: e.target.value })} />
-                    </td>
-                    <td className="py-1 pr-2">
-                      <Input type="number" step="any" value={r.thickness} onChange={(e) => updateRow(r.key, { thickness: e.target.value })} />
-                    </td>
-                    <td className="py-1 pr-2">
-                      <Select value={r.grain} onChange={(e) => updateRow(r.key, { grain: e.target.value as GrainOption })} options={GRAINS} className="h-10 text-sm" />
-                    </td>
-                    <td className="py-1 pr-2 text-center">
-                      <input type="checkbox" checked={r.allowRotation} onChange={(e) => updateRow(r.key, { allowRotation: e.target.checked })} className="h-4 w-4" />
-                    </td>
-                    <td className="py-1 pr-2">
-                      <Input value={r.notes} onChange={(e) => updateRow(r.key, { notes: e.target.value })} placeholder="—" />
-                    </td>
-                    <td className="py-1">
-                      <div className="flex">
-                        <Button size="sm" variant="ghost" type="button" title="Duplicate piece" onClick={() => duplicateRow(r.key)}>
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" type="button" title="Remove piece" onClick={() => removeRow(r.key)}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <Button
-            variant="outline"
-            type="button"
-            className="mt-3 w-full border-dashed"
-            onClick={() => setRows((p) => [...p, emptyRow()])}
-          >
-            <Plus className="h-4 w-4 mr-1" /> Add Piece
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* ============ Generate / Save ============ */}
-      <div className="flex flex-wrap gap-3 print:hidden">
-        <Button size="lg" onClick={handleGenerate} disabled={generating}>
-          <Sparkles className={`h-5 w-5 mr-2 ${generating ? "animate-spin" : ""}`} />
-          {generating ? "Optimizing…" : "GENERATE CUTTING PLAN"}
-        </Button>
-        <Button size="lg" variant="secondary" onClick={handleSave} disabled={saving}>
-          <Save className="h-5 w-5 mr-2" />
-          {saving ? "Saving…" : mode === "edit" ? "Save Changes" : "Save Plan"}
-        </Button>
-        <Button size="lg" variant="outline" onClick={exportFullPlan}>
-          <Download className="h-5 w-5 mr-2" /> Export Full Plan (JSON)
-        </Button>
-      </div>
-
-      {/* ============ Results ============ */}
-      {result && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Optimization Result</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
-              <div className="rounded-lg border p-3">
-                <p className="text-muted-foreground">Boards used</p>
-                <p className="text-xl font-bold">{result.boardsUsed}</p>
-              </div>
-              <div className="rounded-lg border p-3">
-                <p className="text-muted-foreground">Efficiency</p>
-                <p className="text-xl font-bold">{result.efficiency}%</p>
-              </div>
-              <div className="rounded-lg border p-3">
-                <p className="text-muted-foreground">Material used</p>
-                <p className="text-xl font-bold">{(result.usedArea / 1_000_000).toFixed(2)} m²</p>
-              </div>
-              <div className="rounded-lg border p-3">
-                <p className="text-muted-foreground">Waste</p>
-                <p className="text-xl font-bold text-orange-600">{(result.wasteArea / 1_000_000).toFixed(2)} m²</p>
-              </div>
-              <div className="rounded-lg border p-3">
-                <p className="text-muted-foreground">Unplaced</p>
-                <p className={`text-xl font-bold ${result.unplaced.length ? "text-destructive" : ""}`}>{result.unplaced.length}</p>
-              </div>
+              <button type="button" className={toolBtn} onClick={() => { setRows([emptyRow(), emptyRow(), emptyRow()]); setSelected(null); }}>
+                <Eraser className="h-4 w-4 text-slate-600" /> Clear
+              </button>
+              <button type="button" className={toolBtn} onClick={() => exportPieces("csv")}>
+                <FileSpreadsheet className="h-4 w-4 text-slate-600" /> Export
+              </button>
+              <span className="ml-auto pr-1 text-xs text-muted-foreground">{totalPieces} pcs</span>
             </div>
 
-            {(result.totalCuts !== undefined || result.largestOffcut) && (
-              <p className="text-sm text-muted-foreground">
-                {result.totalCuts !== undefined && <>Total saw cuts: <strong>{result.totalCuts}</strong></>}
-                {result.largestOffcut && (
-                  <> · Largest reusable offcut: <strong>{Math.round(result.largestOffcut.length)} × {Math.round(result.largestOffcut.width)}</strong></>
-                )}
-              </p>
-            )}
-
-            {result.unplaced.length > 0 && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-                <p className="font-semibold text-destructive mb-1">Could not place:</p>
-                <ul className="list-disc pl-5">
-                  {result.unplaced.map((u, i) => (
-                    <li key={i}>{u.name} ×{u.quantity} — {u.reason}</li>
-                  ))}
+            {importErrors.length > 0 && (
+              <div className="border-b bg-destructive/5 p-2 text-xs text-destructive">
+                <p className="font-semibold">Import issues ({importErrors.length}):</p>
+                <ul className="max-h-24 list-disc overflow-auto pl-5">
+                  {importErrors.map((e, i) => <li key={i}>{e}</li>)}
                 </ul>
               </div>
             )}
 
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="button" onClick={() => setPrintOpen(true)}>
-                <Printer className="h-4 w-4 mr-2" /> View &amp; Print Sheet (A4)
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Opens a black-and-white canvas beside the page — one tab per board ({result.boardsUsed}).
-              </span>
+            <div className="max-h-[420px] overflow-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead className="sticky top-0 z-10">
+                  <tr>
+                    <th className={`${th} w-9 text-center`}>#</th>
+                    <th className={`${th} w-24`}>Length</th>
+                    <th className={`${th} w-24`}>Width</th>
+                    <th className={`${th} w-20`}>Quantity</th>
+                    <th className={th}>Label</th>
+                    <th className={`${th} w-28`}>Texture</th>
+                    <th className={`${th} w-12 text-center`}>Rot.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => {
+                    const isSel = selected === r.key;
+                    return (
+                      <tr key={r.key} onClick={() => setSelected(r.key)} className={isSel ? "bg-amber-50" : i % 2 ? "bg-slate-50/60" : ""}>
+                        <td className={`${tdBase} bg-sky-100 text-center text-xs font-medium text-sky-900`}>{i + 1}</td>
+                        <td className={tdBase}>
+                          <input id={`len-${r.key}`} className={cell} type="number" step="any" value={r.length} onChange={(e) => updateRow(r.key, { length: e.target.value })} />
+                        </td>
+                        <td className={tdBase}>
+                          <input className={cell} type="number" step="any" value={r.width} onChange={(e) => updateRow(r.key, { width: e.target.value })} />
+                        </td>
+                        <td className={tdBase}>
+                          <input
+                            className={cell}
+                            type="number"
+                            min="1"
+                            value={r.quantity}
+                            onChange={(e) => updateRow(r.key, { quantity: e.target.value })}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && i === rows.length - 1) {
+                                e.preventDefault();
+                                appendRow();
+                              }
+                            }}
+                          />
+                        </td>
+                        <td className={tdBase}>
+                          <input className={cell} value={r.name} onChange={(e) => updateRow(r.key, { name: e.target.value })} placeholder={`Piece ${i + 1}`} />
+                        </td>
+                        <td className={tdBase}>
+                          <select className={cell} value={r.grain} onChange={(e) => updateRow(r.key, { grain: e.target.value as GrainOption })}>
+                            <option value="NONE">None</option>
+                            <option value="LENGTH">Along length</option>
+                            <option value="WIDTH">Along width</option>
+                          </select>
+                        </td>
+                        <td className={`${tdBase} text-center`}>
+                          <input type="checkbox" className="h-4 w-4" checked={r.allowRotation} onChange={(e) => updateRow(r.key, { allowRotation: e.target.checked })} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {rows.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="p-4 text-center text-sm text-muted-foreground">
+                        No pieces yet. Press Append, or Import a CSV / JSON list.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <p className="border-t bg-slate-50 px-2 py-1 text-[11px] text-muted-foreground">
+              Tip: press Enter in the last Quantity cell to add the next row. Import columns: name,length,width,quantity[,grain,rotation,notes].
+            </p>
+          </div>
+
+          {/* ---- STOCK ---- */}
+          <div className="overflow-hidden rounded-md border bg-white">
+            <div className="flex flex-wrap items-center gap-1 border-b bg-slate-50 px-2 py-1">
+              <span className="mr-2 rounded bg-emerald-100 px-2 py-1 text-[11px] font-bold tracking-wide text-emerald-900">STOCK</span>
+              {presets.map((p) => (
+                <button key={p.id} type="button" className="rounded border bg-white px-2 py-1 text-[11px] hover:bg-accent" onClick={() => applyPreset(p)}>
+                  {p.name}
+                </button>
+              ))}
+              <button type="button" className={`${toolBtn} ml-auto`} onClick={savePreset}>
+                <Save className="h-4 w-4 text-slate-600" /> Save size
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr>
+                    <th className={`${th} w-9 text-center`}>#</th>
+                    <th className={`${th} w-24`}>Length</th>
+                    <th className={`${th} w-24`}>Width</th>
+                    <th className={`${th} w-20`}>Quantity</th>
+                    <th className={th}>Material</th>
+                    <th className={`${th} w-20`}>Thick.</th>
+                    <th className={`${th} w-24`}>Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className={`${tdBase} bg-emerald-100 text-center text-xs font-medium text-emerald-900`}>1</td>
+                    <td className={tdBase}>
+                      <input className={cell} type="number" step="any" value={boardLength} onChange={(e) => setBoardLength(e.target.value)} placeholder="2440" />
+                    </td>
+                    <td className={tdBase}>
+                      <input className={cell} type="number" step="any" value={boardWidth} onChange={(e) => setBoardWidth(e.target.value)} placeholder="1220" />
+                    </td>
+                    <td className={tdBase}>
+                      <input className={cell} type="number" min="0" value={boardQuantity} onChange={(e) => setBoardQuantity(e.target.value)} title="0 = unlimited" />
+                    </td>
+                    <td className={tdBase}>
+                      <input className={cell} value={materialName} onChange={(e) => setMaterialName(e.target.value)} placeholder="e.g. wooden colour" />
+                    </td>
+                    <td className={tdBase}>
+                      <input className={cell} type="number" step="any" value={boardThickness} onChange={(e) => setBoardThickness(e.target.value)} placeholder="18" />
+                    </td>
+                    <td className={tdBase}>
+                      <input className={cell} type="number" step="0.01" value={boardPrice} onChange={(e) => setBoardPrice(e.target.value)} placeholder="0.00" />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="grid grid-cols-2 gap-3 border-t p-3 md:grid-cols-4">
+              <div className="space-y-1">
+                <Label className="text-xs" htmlFor="materialType">Material type</Label>
+                <Select id="materialType" value={materialType} onChange={(e) => setMaterialType(e.target.value)} options={MATERIALS} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs" htmlFor="unit">Unit</Label>
+                <Select id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} options={UNITS} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs" htmlFor="kerf">Saw kerf ({unit})</Label>
+                <Input id="kerf" type="number" step="any" min="0" value={kerf} onChange={(e) => setKerf(e.target.value)} placeholder="3" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Edge trim ({unit})</Label>
+                {uniformTrim ? (
+                  <Input type="number" step="any" min="0" value={trimUniformVal} onChange={(e) => setTrimUniformVal(e.target.value)} placeholder="0" />
+                ) : (
+                  <p className="pt-2 text-xs text-muted-foreground">Set per side below</p>
+                )}
+              </div>
+              <label className="col-span-2 flex items-center gap-2 text-xs md:col-span-4">
+                <input type="checkbox" checked={!uniformTrim} onChange={(e) => setUniformTrim(!e.target.checked)} className="h-4 w-4" />
+                Different trim on each edge
+              </label>
+              {!uniformTrim && (
+                <div className="col-span-2 grid grid-cols-4 gap-2 md:col-span-4">
+                  <Input aria-label="Top trim" type="number" step="any" min="0" value={trimTop} onChange={(e) => setTrimTop(e.target.value)} placeholder="Top" />
+                  <Input aria-label="Left trim" type="number" step="any" min="0" value={trimLeft} onChange={(e) => setTrimLeft(e.target.value)} placeholder="Left" />
+                  <Input aria-label="Bottom trim" type="number" step="any" min="0" value={trimBottom} onChange={(e) => setTrimBottom(e.target.value)} placeholder="Bottom" />
+                  <Input aria-label="Right trim" type="number" step="any" min="0" value={trimRight} onChange={(e) => setTrimRight(e.target.value)} placeholder="Right" />
+                </div>
+              )}
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs" htmlFor="direction">Cutting direction</Label>
+                <Select id="direction" value={direction} onChange={(e) => setDirection(e.target.value)} options={DIRECTIONS} />
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs" htmlFor="grainStrategy">Default grain</Label>
+                <Select id="grainStrategy" value={grainStrategy} onChange={(e) => setGrainStrategy(e.target.value)} options={GRAINS} />
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs" htmlFor="strategy">Cutting strategy</Label>
+                <Select id="strategy" value={strategy} onChange={(e) => setStrategy(e.target.value)} options={STRATEGIES} />
+              </div>
+              <label className="col-span-2 flex items-center gap-2 text-xs md:col-span-2 md:pt-6">
+                <input type="checkbox" checked={allowRotation} onChange={(e) => setAllowRotation(e.target.checked)} className="h-4 w-4" />
+                Allow piece rotation
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* ================= RIGHT: RESULT ================= */}
+        <div className="min-w-0 overflow-hidden rounded-md border bg-white">
+          <div className="flex flex-wrap items-center gap-1 border-b bg-slate-50 px-2 py-1">
+            <button type="button" className={toolBtn} onClick={handleGenerate} disabled={generating}>
+              <Play className={`h-5 w-5 text-green-600 ${generating ? "animate-pulse" : ""}`} /> {generating ? "Working…" : "Start"}
+            </button>
+            <button type="button" className={toolBtn} onClick={handleSave} disabled={saving}>
+              <Check className="h-5 w-5 text-green-700" /> {saving ? "Saving…" : "Accept"}
+            </button>
+            <button type="button" className={toolBtn} onClick={() => setPrintOpen(true)} disabled={!result}>
+              <Printer className="h-5 w-5 text-slate-600" /> Print
+            </button>
+            <button type="button" className={toolBtn} onClick={exportFullPlan}>
+              <Download className="h-5 w-5 text-slate-600" /> Export
+            </button>
+            <div className="ml-auto flex flex-wrap items-center gap-3 pr-1 text-xs">
+              <label className="flex items-center gap-1"><input type="checkbox" checked={showSizes} onChange={(e) => setShowSizes(e.target.checked)} /> Sizes</label>
+              <label className="flex items-center gap-1"><input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> Labels</label>
+              <label className="flex items-center gap-1"><input type="checkbox" checked={showStats} onChange={(e) => setShowStats(e.target.checked)} /> Statistics</label>
+              <select value={zoom} onChange={(e) => setZoom(Number(e.target.value))} className="h-7 rounded border bg-white px-1 text-xs" aria-label="Zoom">
+                {[50, 75, 100, 125, 150, 200].map((z) => <option key={z} value={z}>{z}%</option>)}
+              </select>
+            </div>
+          </div>
+
+          {!result ? (
+            <div className="flex min-h-[420px] flex-col items-center justify-center gap-2 p-8 text-center text-muted-foreground">
+              <Sparkles className="h-8 w-8" />
+              <p className="font-medium text-foreground">No layout yet</p>
+              <p className="max-w-sm text-sm">
+                Enter your pieces and the stock sheet size, then press <strong>Start</strong>. Each sheet appears here as a tab,
+                with waste hatched and every piece dimensioned.
+              </p>
+            </div>
+          ) : (
+            <div>
+              {/* sheet tabs */}
+              <div role="tablist" className="flex flex-wrap gap-1 border-b bg-slate-50 px-2 pt-2">
+                {groups.map((g, i) => (
+                  <button
+                    key={g.boards.join("-")}
+                    role="tab"
+                    aria-selected={i === activeIndex}
+                    onClick={() => setTab(i)}
+                    className={`rounded-t border border-b-0 px-3 py-1 text-xs font-medium ${i === activeIndex ? "bg-white text-primary" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                  >
+                    #{i + 1}{g.quantity > 1 ? ` ×${g.quantity}` : ""}
+                  </button>
+                ))}
+              </div>
+
+              {activeGroup && (
+                <div className="p-3">
+                  <div className="overflow-auto rounded border bg-white">
+                    <div style={{ width: `${zoom}%`, minWidth: zoom >= 100 ? undefined : "40%" }}>
+                      <CuttingSheetView
+                        layout={activeGroup.layout}
+                        boardLength={parseFloat(boardLength) || result.usableLength}
+                        boardWidth={parseFloat(boardWidth) || result.usableWidth}
+                        trim={{ top: effTrim.trimTop, bottom: effTrim.trimBottom, left: effTrim.trimLeft, right: effTrim.trimRight }}
+                        refOrder={refOrder}
+                        showSizes={showSizes}
+                        showLabels={showLabels}
+                        usableLength={result.usableLength}
+                        usableWidth={result.usableWidth}
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-center text-sm">
+                    Quantity= {activeGroup.quantity}; Material= {materialName || materialType.toLowerCase()}; Utilization={" "}
+                    {((activeGroup.layout.usedArea / (result.usableLength * result.usableWidth)) * 100).toFixed(2)}%;
+                    {activeGroup.quantity > 1 && (
+                      <span className="text-muted-foreground"> (sheets {activeGroup.boards.map((b) => `#${b}`).join(", ")} are identical)</span>
+                    )}
+                  </p>
+                </div>
+              )}
+
+              {result.unplaced.length > 0 && (
+                <div className="mx-3 mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                  <p className="mb-1 font-semibold text-destructive">Could not place:</p>
+                  <ul className="list-disc pl-5">
+                    {result.unplaced.map((u, i) => (
+                      <li key={i}>{u.name} ×{u.quantity} — {u.reason}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {showStats && (
+                <div className="mx-3 mb-3 grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
+                  {[
+                    ["Sheets used", String(result.boardsUsed)],
+                    ["Layouts", String(groups.length)],
+                    ["Pieces placed", String(result.boards.reduce((s, b) => s + b.placements.length, 0))],
+                    ["Utilization", `${result.efficiency}%`],
+                    ["Material used", `${(result.usedArea / 1_000_000).toFixed(2)} m²`],
+                    ["Waste", `${(result.wasteArea / 1_000_000).toFixed(2)} m²`],
+                    ["Saw cuts", String(result.totalCuts ?? "—")],
+                    [
+                      "Largest offcut",
+                      result.largestOffcut ? `${Math.round(result.largestOffcut.length)} × ${Math.round(result.largestOffcut.width)}` : "—",
+                    ],
+                    ...(pricePerSheet > 0 ? [["Material cost", `GHS ${(pricePerSheet * result.boardsUsed).toFixed(2)}`]] : []),
+                  ].map(([k, v]) => (
+                    <div key={k} className="rounded-lg border p-2">
+                      <p className="text-xs text-muted-foreground">{k}</p>
+                      <p className="font-semibold">{v}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {result && (
         <CuttingPrintPanel
