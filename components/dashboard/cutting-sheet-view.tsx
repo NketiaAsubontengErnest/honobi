@@ -115,9 +115,6 @@ export function CuttingSheetView({
             ? { top: e.left, right: e.top, bottom: e.right, left: e.bottom }
             : { top: e.top, right: e.right, bottom: e.bottom, left: e.left };
           const banded = [side.top, side.right, side.bottom, side.left].filter(Boolean) as string[];
-          // one marker per banded side, attached to the dimension that side belongs to
-          const lengthMarks = [side.top, side.bottom].filter(Boolean) as string[];
-          const widthMarks = [side.left, side.right].filter(Boolean) as string[];
 
           const pieceFs = Math.min(fs, p.width * 0.28, p.length * 0.28);
           const tiny = pieceFs < fs * 0.32;
@@ -125,20 +122,24 @@ export function CuttingSheetView({
           // very thin strips get one combined "L x W" line instead of separate labels
           const thinH = !tiny && p.width < fs * 3.4;
           const thinV = !tiny && !thinH && p.length < fs * 3.4;
-          const bw = Math.min(fs * 0.13, p.width * 0.1, p.length * 0.1);
           const cx = x + p.length / 2;
           const cy = y + p.width / 2;
-          const combined = `${fmt(p.length)}x${fmt(p.width)}${banded.length ? "  " + Array.from(new Set(banded)).join(" ") : ""}`;
+          const combined = `${fmt(p.length)}x${fmt(p.width)}${banded.length ? "\u00A0\u00A0" + Array.from(new Set(banded)).join("\u00A0") : ""}`;
+
+          // Band markers (# or a name like HD) sit on the banded side only:
+          //   top    -> centred under the length number
+          //   bottom -> centred on the bottom edge
+          //   left   -> rotated, side by side with the width number
+          //   right  -> rotated, on the right edge
+          const mFs = pieceFs * 0.85;
+          const gap = mFs * 1.2;
+          const edgeInset = mFs * 0.45;
+          const markers = !tiny && !thinH && !thinV && showSizes;
+          const widthNumX = x + pieceFs * 1.15;
 
           return (
             <g key={`${p.ref}-${i}`}>
               <rect x={x} y={y} width={p.length} height={p.width} fill={tint(idx)} stroke="#15803d" strokeWidth={fs * 0.1} />
-
-              {/* band on each chosen side */}
-              {side.top && <line x1={x} y1={y + bw / 2} x2={x + p.length} y2={y + bw / 2} stroke="#ea580c" strokeWidth={bw} />}
-              {side.bottom && <line x1={x} y1={y + p.width - bw / 2} x2={x + p.length} y2={y + p.width - bw / 2} stroke="#ea580c" strokeWidth={bw} />}
-              {side.left && <line x1={x + bw / 2} y1={y} x2={x + bw / 2} y2={y + p.width} stroke="#ea580c" strokeWidth={bw} />}
-              {side.right && <line x1={x + p.length - bw / 2} y1={y} x2={x + p.length - bw / 2} y2={y + p.width} stroke="#ea580c" strokeWidth={bw} />}
 
               {!tiny && thinH && showSizes && (
                 <text x={cx} y={cy + Math.min(fs, p.width * 0.5) * 0.35} textAnchor="middle" fontSize={Math.min(fs, p.width * 0.5)} fill="#111">
@@ -155,26 +156,11 @@ export function CuttingSheetView({
                 <>
                   {showSizes && (
                     <>
-                      {/* length: markers of the top / bottom bands sit right beside the number */}
                       <text x={cx} y={y + pieceFs * 1.15} textAnchor="middle" fontSize={pieceFs} fill="#111">
                         {fmt(p.length)}
-                        {lengthMarks.length > 0 && (
-                          <tspan dx={pieceFs * 0.45} fill="#c2410c" fontWeight="700" fontSize={pieceFs * 0.9}>{`  ${lengthMarks.join(" ")}`}</tspan>
-                        )}
                       </text>
-                      {/* width: markers of the left / right bands */}
-                      <text
-                        x={x + pieceFs * 1.15}
-                        y={cy}
-                        textAnchor="middle"
-                        fontSize={pieceFs}
-                        fill="#111"
-                        transform={`rotate(-90 ${x + pieceFs * 1.15} ${cy})`}
-                      >
+                      <text x={widthNumX} y={cy} textAnchor="middle" fontSize={pieceFs} fill="#111" transform={`rotate(-90 ${widthNumX} ${cy})`}>
                         {fmt(p.width)}
-                        {widthMarks.length > 0 && (
-                          <tspan dx={pieceFs * 0.45} fill="#c2410c" fontWeight="700" fontSize={pieceFs * 0.9}>{`  ${widthMarks.join(" ")}`}</tspan>
-                        )}
                       </text>
                     </>
                   )}
@@ -191,8 +177,42 @@ export function CuttingSheetView({
                       {p.name.length > 18 ? `${p.name.slice(0, 17)}…` : p.name}
                     </text>
                   )}
-
                 </>
+              )}
+
+              {markers && side.top && (
+                <text x={cx} y={y + pieceFs * 1.15 + gap} textAnchor="middle" fontSize={mFs} fill="#111">
+                  {side.top}
+                </text>
+              )}
+              {markers && side.bottom && (
+                <text x={cx} y={y + p.width - edgeInset} textAnchor="middle" fontSize={mFs} fill="#111">
+                  {side.bottom}
+                </text>
+              )}
+              {markers && side.left && (
+                <text
+                  x={widthNumX + gap}
+                  y={cy}
+                  textAnchor="middle"
+                  fontSize={mFs}
+                  fill="#111"
+                  transform={`rotate(-90 ${widthNumX + gap} ${cy})`}
+                >
+                  {side.left}
+                </text>
+              )}
+              {markers && side.right && (
+                <text
+                  x={x + p.length - edgeInset}
+                  y={cy}
+                  textAnchor="middle"
+                  fontSize={mFs}
+                  fill="#111"
+                  transform={`rotate(-90 ${x + p.length - edgeInset} ${cy})`}
+                >
+                  {side.right}
+                </text>
               )}
             </g>
           );
