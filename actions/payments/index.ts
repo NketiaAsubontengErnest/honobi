@@ -5,9 +5,10 @@ import { prisma } from "@/lib/db/prisma";
 import { paymentSchema } from "@/lib/validation/schemas";
 import { revalidatePath } from "next/cache";
 import { generateNumber } from "@/lib/utils";
+import { recordIncomeForPayment } from "@/lib/finance/payment-income";
 
 export async function createPayment(formData: FormData) {
-  await requirePermissionServer("payments:create");
+  const user = await requirePermissionServer("payments:create");
   const data = Object.fromEntries(formData.entries());
   const validated = paymentSchema.parse(data);
   const reference = generateNumber("PAY");
@@ -26,6 +27,15 @@ export async function createPayment(formData: FormData) {
         notes: validated.notes || null,
       },
     });
+
+    await recordIncomeForPayment(tx, {
+      reference,
+      amount: validated.amount,
+      paymentMethod: validated.paymentMethod,
+      customerId: validated.customerId,
+      jobId: validated.jobId || null,
+      paymentDate: new Date(validated.paymentDate),
+    }, user.id);
 
     // Update invoice balance if linked
     if (validated.invoiceId) {
@@ -59,6 +69,8 @@ export async function createPayment(formData: FormData) {
   });
 
   revalidatePath("/dashboard/payments");
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/income");
   return { success: true, payment };
 }
 

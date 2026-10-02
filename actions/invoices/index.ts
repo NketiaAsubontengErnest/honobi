@@ -4,6 +4,7 @@ import { requirePermissionServer } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db/prisma";
 import { validateAmounts, validateLineItems, round2 } from "@/lib/validation/money";
 import { generateNumber } from "@/lib/utils";
+import { recordIncomeForPayment } from "@/lib/finance/payment-income";
 
 // Convert Prisma results (Decimal/Date instances) into plain objects that can
 // cross the Server -> Client boundary (server action return values).
@@ -181,7 +182,7 @@ export async function recordPayment(
     jobId?: string;
   }
 ) {
-  await requirePermissionServer("payments:create");
+  const user = await requirePermissionServer("payments:create");
   if (!Number.isFinite(paymentData.amount) || paymentData.amount <= 0) throw new Error("Amount must be positive");
   const reference = generateNumber("PAY");
   const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
@@ -199,6 +200,14 @@ export async function recordPayment(
       notes: paymentData.notes,
     },
   });
+
+  await recordIncomeForPayment(prisma, {
+    reference,
+    amount: paymentData.amount,
+    paymentMethod: paymentData.paymentMethod,
+    customerId: paymentData.customerId,
+    jobId: paymentData.jobId || null,
+  }, user.id);
 
   const newAmountPaid = Number(invoice.amountPaid) + paymentData.amount;
   const newBalance = Number(invoice.total) - newAmountPaid;
