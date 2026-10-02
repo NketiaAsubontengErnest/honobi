@@ -26,3 +26,15 @@ export async function deleteMedia(id: string) {
   revalidatePath("/dashboard/media");
   return { success: true };
 }
+
+/** Show or hide an uploaded image on the public gallery (moves it between the "gallery" and "library" folders). */
+export async function setMediaInGallery(id: string, inGallery: boolean) {
+  await requirePermissionServer("media:upload");
+  const media = await prisma.media.findUnique({ where: { id } });
+  if (!media) throw new Error("Media not found");
+  if (!media.mimeType.startsWith("image/")) throw new Error("Only images can be shown in the gallery");
+  await prisma.media.update({ where: { id }, data: { folder: inGallery ? "gallery" : "library" } });
+  revalidatePath("/dashboard/media");
+  revalidatePath("/gallery");
+  return { success: true };
+}

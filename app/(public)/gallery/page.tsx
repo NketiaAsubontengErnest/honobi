@@ -1,20 +1,39 @@
 import { prisma } from "@/lib/db/prisma";
 import { GalleryGrid } from "@/components/public/gallery-grid";
 
-export default async function GalleryPage() {
-  const projects = await prisma.project.findMany({
-    where: { isActive: true, isPublic: true },
-    include: { images: true },
-  });
+export const dynamic = "force-dynamic";
 
-  const allImages = projects.flatMap((p: typeof projects[0]) =>
-    p.images.map((img: typeof p.images[0]) => ({
-      id: img.id,
-      url: img.url,
-      altText: img.altText ?? p.name,
-      project: p.name,
-    }))
-  );
+// Media-library folders whose images appear on the public gallery
+const GALLERY_FOLDERS = ["gallery", "uploads", "projects"];
+
+export default async function GalleryPage() {
+  const [projects, media] = await Promise.all([
+    prisma.project.findMany({
+      where: { isActive: true, isPublic: true },
+      include: { images: { orderBy: { order: "asc" } } },
+    }),
+    prisma.media.findMany({
+      where: { isActive: true, mimeType: { startsWith: "image/" }, folder: { in: GALLERY_FOLDERS } },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  const seen = new Set<string>();
+  const allImages: { id: string; url: string; altText: string; project: string }[] = [];
+  const push = (id: string, url: string, altText: string, project: string) => {
+    if (seen.has(url)) return;
+    seen.add(url);
+    allImages.push({ id, url, altText, project });
+  };
+
+  // Newest uploads first, then the project photos
+  for (const m of media) {
+    if (m.folder === "projects") continue; // shown below with their project name
+    push(m.id, m.url, m.altText ?? m.filename, m.altText ?? "");
+  }
+  for (const p of projects) {
+    for (const img of p.images) push(img.id, img.url, img.altText ?? p.name, p.name);
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-16">

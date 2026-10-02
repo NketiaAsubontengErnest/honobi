@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
-import { deleteMedia } from "@/actions/media";
+import { deleteMedia, setMediaInGallery } from "@/actions/media";
 import { Copy, FileText, Trash2, Upload } from "lucide-react";
 
 type Media = {
@@ -50,7 +50,7 @@ export function MediaClient({
     try {
       const body = new FormData();
       Array.from(files).forEach((f) => body.append("files", f));
-      body.append("folder", "uploads");
+      body.append("folder", "gallery");
       const res = await fetch("/api/media", { method: "POST", body });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -76,6 +76,18 @@ export function MediaClient({
       router.refresh();
     } catch (e) {
       setMessage({ ok: false, text: e instanceof Error ? e.message : "Delete failed" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleGallery(m: Media) {
+    setBusy(true);
+    try {
+      await setMediaInGallery(m.id, m.folder !== "gallery" && m.folder !== "uploads");
+      router.refresh();
+    } catch (e) {
+      setMessage({ ok: false, text: e instanceof Error ? e.message : "Could not update" });
     } finally {
       setBusy(false);
     }
@@ -148,6 +160,17 @@ export function MediaClient({
                   <p className="text-xs text-muted-foreground">
                     {formatDate(m.createdAt)} {formatSize(m.size) && `· ${formatSize(m.size)}`}
                   </p>
+                  {m.mimeType.startsWith("image/") && (m.folder === "gallery" || m.folder === "uploads" || m.folder === "library") && canUpload ? (
+                    <button
+                      onClick={() => toggleGallery(m)}
+                      disabled={busy}
+                      className={`w-full rounded border px-2 py-1 text-xs ${m.folder === "library" ? "text-muted-foreground hover:bg-accent" : "bg-primary/10 text-primary"}`}
+                    >
+                      {m.folder === "library" ? "Not in gallery · show" : "In public gallery · hide"}
+                    </button>
+                  ) : m.folder === "projects" ? (
+                    <p className="text-xs text-primary">In public gallery (project)</p>
+                  ) : null}
                   <div className="flex gap-1 pt-1">
                     <Button size="sm" variant="outline" className="h-7 flex-1 gap-1 px-2 text-xs" onClick={() => copy(m)}>
                       <Copy className="h-3 w-3" /> {copied === m.id ? "Copied" : "Copy URL"}
