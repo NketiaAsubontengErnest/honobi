@@ -610,7 +610,7 @@ export function CuttingPlanForm({
           const iName = idx("name"), iLen = idx("length"), iW = idx("width"), iQty = idx("quantity");
           const iGrain = idx("grain"), iRot = idx("rotation"), iNotes = idx("notes");
           const iET = idx("edgetop"), iEL = idx("edgeleft"), iEB = idx("edgebottom"), iER = idx("edgeright");
-          const edge = (cols: string[], i: number) => (i >= 0 ? (cols[i] ?? "").trim().replace(/^#$/, "") : "");
+          const edge = (cols: string[], i: number) => (i >= 0 ? (cols[i] ?? "").trim() : "");
           if (iName === -1 || iLen === -1 || iW === -1 || iQty === -1) {
             errs.push("CSV header must include: name,length,width,quantity[,grain,rotation,notes]");
           } else {

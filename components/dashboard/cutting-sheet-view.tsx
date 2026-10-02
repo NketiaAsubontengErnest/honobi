@@ -108,76 +108,62 @@ export function CuttingSheetView({
           const x = trim.left + p.x;
           const y = trim.top + (usableWidth - p.y - p.width);
           const idx = Math.max(0, refOrder.indexOf(p.ref));
-          const pieceFs = Math.min(fs, p.width * 0.28, p.length * 0.28);
-          const tiny = pieceFs < fs * 0.32;
-          const tall = p.width > p.length * 1.6 && p.width > fs * 3;
+
           // Edge bands are defined for the piece as entered; a rotated piece turns clockwise
           const e = edges[p.ref] ?? {};
           const side = p.rotated
             ? { top: e.left, right: e.top, bottom: e.right, left: e.bottom }
             : { top: e.top, right: e.right, bottom: e.bottom, left: e.left };
-          const bw = fs * 0.2;
-          const codeFs = fs * 0.72;
-          const roomForCodes = !tiny && p.length > fs * 7 && p.width > fs * 7;
+          const banded = [side.top, side.right, side.bottom, side.left].filter(Boolean) as string[];
+
+          const pieceFs = Math.min(fs, p.width * 0.28, p.length * 0.28);
+          const tiny = pieceFs < fs * 0.32;
+          const tall = p.width > p.length * 1.6 && p.width > fs * 3;
+          // very thin strips get one combined "L x W" line instead of separate labels
+          const thinH = !tiny && p.width < fs * 3.4;
+          const thinV = !tiny && !thinH && p.length < fs * 3.4;
+          const bw = Math.min(fs * 0.13, p.width * 0.1, p.length * 0.1);
+          const codeFs = Math.min(fs * 0.85, p.width * 0.17, p.length * 0.17);
+          const showCodes = showSizes && !thinH && !thinV && codeFs > fs * 0.2;
+          const cx = x + p.length / 2;
+          const cy = y + p.width / 2;
+          const combined = `${fmt(p.length)}x${fmt(p.width)}${banded.length ? "  " + Array.from(new Set(banded)).join(" ") : ""}`;
+
           return (
             <g key={`${p.ref}-${i}`}>
               <rect x={x} y={y} width={p.length} height={p.width} fill={tint(idx)} stroke="#15803d" strokeWidth={fs * 0.1} />
+
+              {/* band on each chosen side */}
               {side.top && <line x1={x} y1={y + bw / 2} x2={x + p.length} y2={y + bw / 2} stroke="#ea580c" strokeWidth={bw} />}
               {side.bottom && <line x1={x} y1={y + p.width - bw / 2} x2={x + p.length} y2={y + p.width - bw / 2} stroke="#ea580c" strokeWidth={bw} />}
               {side.left && <line x1={x + bw / 2} y1={y} x2={x + bw / 2} y2={y + p.width} stroke="#ea580c" strokeWidth={bw} />}
               {side.right && <line x1={x + p.length - bw / 2} y1={y} x2={x + p.length - bw / 2} y2={y + p.width} stroke="#ea580c" strokeWidth={bw} />}
-              {showSizes && roomForCodes && (
-                <>
-                  {side.bottom && (
-                    <text x={x + p.length / 2} y={y + p.width - bw - codeFs * 0.3} textAnchor="middle" fontSize={codeFs} fill="#9a3412">
-                      {side.bottom}
-                    </text>
-                  )}
-                  {side.top && (
-                    <text x={x + p.length / 2} y={y + bw + codeFs * 2.6} textAnchor="middle" fontSize={codeFs} fill="#9a3412">
-                      {side.top}
-                    </text>
-                  )}
-                  {side.right && (
-                    <text
-                      x={x + p.length - bw - codeFs * 0.3}
-                      y={y + p.width / 2}
-                      textAnchor="middle"
-                      fontSize={codeFs}
-                      fill="#9a3412"
-                      transform={`rotate(-90 ${x + p.length - bw - codeFs * 0.3} ${y + p.width / 2})`}
-                    >
-                      {side.right}
-                    </text>
-                  )}
-                  {side.left && (
-                    <text
-                      x={x + bw + codeFs * 2.6}
-                      y={y + p.width / 2}
-                      textAnchor="middle"
-                      fontSize={codeFs}
-                      fill="#9a3412"
-                      transform={`rotate(-90 ${x + bw + codeFs * 2.6} ${y + p.width / 2})`}
-                    >
-                      {side.left}
-                    </text>
-                  )}
-                </>
+
+              {!tiny && thinH && showSizes && (
+                <text x={cx} y={cy + Math.min(fs, p.width * 0.5) * 0.35} textAnchor="middle" fontSize={Math.min(fs, p.width * 0.5)} fill="#111">
+                  {combined}
+                </text>
               )}
-              {!tiny && (
+              {!tiny && thinV && showSizes && (
+                <text x={cx} y={cy} textAnchor="middle" fontSize={Math.min(fs, p.length * 0.5)} fill="#111" transform={`rotate(-90 ${cx} ${cy})`}>
+                  {combined}
+                </text>
+              )}
+
+              {!tiny && !thinH && !thinV && (
                 <>
                   {showSizes && (
                     <>
-                      <text x={x + p.length / 2} y={y + pieceFs * 1.15} textAnchor="middle" fontSize={pieceFs} fill="#111">
+                      <text x={cx} y={y + pieceFs * 1.15} textAnchor="middle" fontSize={pieceFs} fill="#111">
                         {fmt(p.length)}
                       </text>
                       <text
                         x={x + pieceFs * 1.15}
-                        y={y + p.width / 2}
+                        y={cy}
                         textAnchor="middle"
                         fontSize={pieceFs}
                         fill="#111"
-                        transform={`rotate(-90 ${x + pieceFs * 1.15} ${y + p.width / 2})`}
+                        transform={`rotate(-90 ${x + pieceFs * 1.15} ${cy})`}
                       >
                         {fmt(p.width)}
                       </text>
@@ -185,15 +171,51 @@ export function CuttingSheetView({
                   )}
                   {showLabels && p.name && (
                     <text
-                      x={x + p.length / 2}
-                      y={y + p.width / 2 + pieceFs * 0.35}
+                      x={cx}
+                      y={cy + pieceFs * 0.35}
                       textAnchor="middle"
                       fontSize={pieceFs * 0.95}
                       fontWeight="600"
                       fill="#111"
-                      transform={tall ? `rotate(-90 ${x + p.length / 2} ${y + p.width / 2})` : undefined}
+                      transform={tall ? `rotate(-90 ${cx} ${cy})` : undefined}
                     >
                       {p.name.length > 18 ? `${p.name.slice(0, 17)}…` : p.name}
+                    </text>
+                  )}
+
+                  {/* the band marker (e.g. # or HD) sits on each banded side only */}
+                  {showCodes && side.top && (
+                    <text x={cx} y={y + pieceFs * 1.15 + codeFs * 1.25} textAnchor="middle" fontSize={codeFs} fill="#9a3412">
+                      {side.top}
+                    </text>
+                  )}
+                  {showCodes && side.bottom && (
+                    <text x={cx} y={y + p.width - bw - codeFs * 0.35} textAnchor="middle" fontSize={codeFs} fill="#9a3412">
+                      {side.bottom}
+                    </text>
+                  )}
+                  {showCodes && side.left && (
+                    <text
+                      x={x + pieceFs * 1.15 + codeFs * 1.25}
+                      y={cy}
+                      textAnchor="middle"
+                      fontSize={codeFs}
+                      fill="#9a3412"
+                      transform={`rotate(-90 ${x + pieceFs * 1.15 + codeFs * 1.25} ${cy})`}
+                    >
+                      {side.left}
+                    </text>
+                  )}
+                  {showCodes && side.right && (
+                    <text
+                      x={x + p.length - bw - codeFs * 0.35}
+                      y={cy}
+                      textAnchor="middle"
+                      fontSize={codeFs}
+                      fill="#9a3412"
+                      transform={`rotate(-90 ${x + p.length - bw - codeFs * 0.35} ${cy})`}
+                    >
+                      {side.right}
                     </text>
                   )}
                 </>
