@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { DataTable } from "@/components/dashboard/data-table";
 import { Button } from "@/components/ui/button";
@@ -31,8 +33,13 @@ export function ServicesClient({ services }: { services: Service[] }) {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this service?")) return;
-    await deleteService(id);
-    setData((prev) => prev.filter((s) => s.id !== id));
+    try {
+      await deleteService(id);
+      setData((prev) => prev.filter((s) => s.id !== id));
+      toast.success("Service deleted");
+    } catch (e) {
+      toast.error(flashError(e, "Could not delete the service"));
+    }
   };
 
   const columns = [

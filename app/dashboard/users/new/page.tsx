@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -33,9 +35,11 @@ export default function NewUserPage() {
         password: String(formData.get("password") || ""),
         role: String(formData.get("role") || "STAFF"),
       });
+      toast.success("User created");
       router.push("/dashboard/users");
       router.refresh();
-    } catch {
+    } catch (e) {
+      toast.error(flashError(e, "Failed to create the user. Please check your input and try again."));
       setError("Failed to create the user. Please check your input and try again.");
     }
   }

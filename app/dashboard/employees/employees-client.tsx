@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { DataTable } from "@/components/dashboard/data-table";
 import { Button } from "@/components/ui/button";
@@ -31,8 +33,13 @@ export function EmployeesClient({ employees }: { employees: Employee[] }) {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Deactivate this employee?")) return;
-    await deleteEmployee(id);
-    setData((prev) => prev.filter((e) => e.id !== id));
+    try {
+      await deleteEmployee(id);
+      setData((prev) => prev.filter((e) => e.id !== id));
+      toast.success("Employee deactivated");
+    } catch (e) {
+      toast.error(flashError(e, "Could not delete the employee"));
+    }
   };
 
   const columns = [

@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,8 +35,13 @@ export function MessagesClient({ messages }: { messages: Message[] }) {
   const count = (st: string) => (st === "ALL" ? data.length : data.filter((m) => m.status === st).length);
 
   const handleStatusChange = async (id: string, status: string) => {
-    await updateMessageStatus(id, status);
-    setData((prev) => prev.map((m) => (m.id === id ? { ...m, status } : m)));
+    try {
+      await updateMessageStatus(id, status);
+      setData((prev) => prev.map((m) => (m.id === id ? { ...m, status } : m)));
+      toast.success(`Message marked as ${status.toLowerCase()}`);
+    } catch (e) {
+      toast.error(flashError(e, "Could not update the message"));
+    }
   };
 
   return (

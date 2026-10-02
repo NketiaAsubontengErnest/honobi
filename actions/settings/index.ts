@@ -2,7 +2,9 @@
 
 import { prisma } from "@/lib/db/prisma";
 import { getSessionUser, requirePermissionServer } from "@/lib/auth/guard";
-import { ensureEmailSettings, sendMail, SECRET_SETTING_KEYS, SECRET_MASK } from "@/lib/email";
+import { sendMail, SECRET_SETTING_KEYS, SECRET_MASK } from "@/lib/email";
+import { ensureAllSettings } from "@/lib/settings/defaults";
+import { revalidatePath } from "next/cache";
 
 function maskSecret<T extends { key: string; value: string }>(s: T): T {
   return SECRET_SETTING_KEYS.includes(s.key) && s.value ? { ...s, value: SECRET_MASK } : s;
@@ -10,7 +12,7 @@ function maskSecret<T extends { key: string; value: string }>(s: T): T {
 
 export async function getSettings(group?: string) {
   await requirePermissionServer("settings:view");
-  await ensureEmailSettings();
+  await ensureAllSettings();
   const where: { isActive: boolean; group?: string } = { isActive: true };
   if (group) where.group = group;
   const rows = await prisma.setting.findMany({ where, orderBy: { key: "asc" } });
@@ -30,6 +32,8 @@ export async function updateSetting(id: string, value: string) {
   // The masked placeholder means "unchanged"
   if (SECRET_SETTING_KEYS.includes(current.key) && value === SECRET_MASK) return maskSecret(current);
   const updated = await prisma.setting.update({ where: { id }, data: { value: value.trim() } });
+  // Public pages (footer, contact page, WhatsApp links) read these values
+  revalidatePath("/", "layout");
   return maskSecret(updated);
 }
 

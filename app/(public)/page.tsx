@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import { site } from "@/lib/site";
+import { getSite } from "@/lib/site";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { ArrowRight, Star, Phone, MessageCircle } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
+  const site = await getSite();
   const [featuredProducts, featuredProjects, services, testimonials, stats] = await Promise.all([
     prisma.product.findMany({ where: { isFeatured: true, isPublic: true, isActive: true, status: { not: "DISCONTINUED" } }, take: 4, include: { images: { take: 1 } } }),
     prisma.project.findMany({ where: { isFeatured: true, isPublic: true, isActive: true, status: "COMPLETED" }, take: 3, include: { images: { take: 1 } } }),
@@ -44,11 +45,13 @@ export default async function HomePage() {
               <Link href="/projects">
                 <Button size="lg" variant="outline">View Our Projects</Button>
               </Link>
-              <a href={site.whatsappUrl} target="_blank" rel="noopener noreferrer">
-                <Button size="lg" variant="ghost" className="gap-2 text-green-600 hover:text-green-700">
-                  <MessageCircle className="h-4 w-4" /> WhatsApp Us
-                </Button>
-              </a>
+              {site.whatsappUrl && (
+                <a href={site.whatsappUrl} target="_blank" rel="noopener noreferrer">
+                  <Button size="lg" variant="ghost" className="gap-2 text-green-600 hover:text-green-700">
+                    <MessageCircle className="h-4 w-4" /> WhatsApp Us
+                  </Button>
+                </a>
+              )}
             </div>
           </div>
         </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { DataTable } from "@/components/dashboard/data-table";
 import { Button } from "@/components/ui/button";
@@ -26,8 +28,13 @@ export function SuppliersClient({ suppliers }: { suppliers: Supplier[] }) {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this supplier?")) return;
-    await deleteSupplier(id);
-    setData((prev) => prev.filter((s) => s.id !== id));
+    try {
+      await deleteSupplier(id);
+      setData((prev) => prev.filter((s) => s.id !== id));
+      toast.success("Supplier deleted");
+    } catch (e) {
+      toast.error(flashError(e, "Could not delete the supplier"));
+    }
   };
 
   const columns = [

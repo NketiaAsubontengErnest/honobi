@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -31,9 +33,11 @@ export default function NewTestimonialPage() {
         isFeatured: formData.get("isFeatured") === "on",
         isApproved: formData.get("isApproved") === "on",
       });
+      toast.success("Testimonial added");
       router.push("/dashboard/testimonials");
       router.refresh();
-    } catch {
+    } catch (e) {
+      toast.error(flashError(e, "Failed to save the testimonial. Please check your input and try again."));
       setError("Failed to save the testimonial. Please check your input and try again.");
     }
   }

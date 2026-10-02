@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -23,9 +25,11 @@ export default function NewSupplierPage() {
     setError(null);
     try {
       await createSupplier(formData);
+      toast.success("Supplier added");
       router.push("/dashboard/suppliers");
       router.refresh();
-    } catch {
+    } catch (e) {
+      toast.error(flashError(e, "Failed to save the supplier. Please check your input and try again."));
       setError("Failed to save the supplier. Please check your input and try again.");
     }
   }

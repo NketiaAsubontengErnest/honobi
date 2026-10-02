@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { DataTable } from "@/components/dashboard/data-table";
 import { Button } from "@/components/ui/button";
@@ -39,8 +41,13 @@ export function QuotesClient({ quotes }: { quotes: Quote[] }) {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this quote?")) return;
-    await deleteQuote(id);
-    setData((prev) => prev.filter((q) => q.id !== id));
+    try {
+      await deleteQuote(id);
+      setData((prev) => prev.filter((q) => q.id !== id));
+      toast.success("Quotation deleted");
+    } catch (e) {
+      toast.error(flashError(e, "Could not delete the quotation"));
+    }
   };
 
   const columns = [

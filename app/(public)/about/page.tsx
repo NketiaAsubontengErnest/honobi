@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function AboutPage() {
-  const settings = await prisma.setting.findMany({ where: { isActive: true, group: "business" } });
+  const settings = await prisma.setting.findMany({ where: { isActive: true, key: { in: ["business_name", "business_description"] } } });
   const settingsMap: Record<string, string> = {};
   settings.forEach((s: { key: string; value: string }) => { settingsMap[s.key] = s.value; });
 

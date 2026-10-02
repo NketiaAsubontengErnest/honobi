@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { DataTable } from "@/components/dashboard/data-table";
 import { Button } from "@/components/ui/button";
@@ -61,8 +63,13 @@ export function InvoicesClient({ invoices }: { invoices: Invoice[] }) {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this invoice?")) return;
-    await deleteInvoice(id);
-    setData((prev) => prev.filter((inv) => inv.id !== id));
+    try {
+      await deleteInvoice(id);
+      setData((prev) => prev.filter((inv) => inv.id !== id));
+      toast.success("Invoice deleted");
+    } catch (e) {
+      toast.error(flashError(e, "Could not delete the invoice"));
+    }
   };
 
   const openPaymentDialog = (inv: Invoice) => {
@@ -108,7 +115,9 @@ export function InvoicesClient({ invoices }: { invoices: Invoice[] }) {
         })
       );
       setPayFor(null);
-    } catch {
+      toast.success("Payment recorded");
+    } catch (e) {
+      toast.error(flashError(e, "Failed to record the payment. Please try again."));
       setError("Failed to record the payment. Please try again.");
     } finally {
       setBusy(false);

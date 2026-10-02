@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,8 +28,13 @@ export default function QuotePage() {
         estimatedBudget: parseFloat(formData.get("estimatedBudget") as string) || undefined,
         additionalNotes: formData.get("additionalNotes") as string,
       });
-      if (res.success) setSuccess(true);
-      else setError(res.error);
+      if (res.success) {
+        setSuccess(true);
+        toast.success("Quote request sent. We will contact you shortly.");
+      } else {
+        setError(res.error);
+        toast.error(res.error);
+      }
     } catch {
       setError("Could not submit your request. Please check your connection and try again.");
     } finally {

@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -29,9 +31,11 @@ export default function NewProductPage() {
     setError(null);
     try {
       await createProduct(formData);
+      toast.success("Product created");
       router.push("/dashboard/products");
       router.refresh();
-    } catch {
+    } catch (e) {
+      toast.error(flashError(e, "Failed to save the product. Please check your input and try again."));
       setError("Failed to save the product. Please check your input and try again.");
     }
   }

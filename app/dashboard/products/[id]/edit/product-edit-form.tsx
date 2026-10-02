@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -48,9 +50,11 @@ export function ProductEditForm({
     setPending(true);
     try {
       await updateProduct(productId, formData);
+      toast.success("Product updated");
       router.push("/dashboard/products");
       router.refresh();
-    } catch {
+    } catch (e) {
+      toast.error(flashError(e, "Failed to update the product. Please check your input and try again."));
       setError("Failed to update the product. Please check your input and try again.");
       setPending(false);
     }

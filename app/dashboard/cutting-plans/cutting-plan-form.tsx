@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -394,9 +396,11 @@ export function CuttingPlanForm({
         mode === "edit" && initialData
           ? await updateCuttingPlan(initialData.id, input)
           : await createCuttingPlan(input);
+      toast.success(mode === "edit" ? "Cutting plan updated" : "Cutting plan created");
       router.push(`/dashboard/cutting-plans/${saved.id}`);
       router.refresh();
     } catch (e) {
+      toast.error(flashError(e, "Failed to save plan"));
       setError(e instanceof Error ? e.message : "Failed to save plan");
       setSaving(false);
     }
@@ -405,9 +409,14 @@ export function CuttingPlanForm({
   // ---------- status actions ----------
   const changeStatus = async (next: string) => {
     if (!initialData) return;
-    await updateCuttingPlanStatus(initialData.id, next);
-    setStatus(next);
-    router.refresh();
+    try {
+      await updateCuttingPlanStatus(initialData.id, next);
+      setStatus(next);
+      toast.success(`Status changed to ${next.toLowerCase()}`);
+      router.refresh();
+    } catch (e) {
+      toast.error(flashError(e, "Could not change the status"));
+    }
   };
 
   // ---------- presets ----------

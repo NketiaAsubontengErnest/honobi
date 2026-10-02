@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
@@ -94,14 +96,17 @@ export function InvoiceForm({ customers, invoice }: { customers: { value: string
       if (invoice) {
         const status = String(formData.get("status") || "") || undefined;
         await updateInvoice(invoice.id, { ...payload, status, notes: payload.notes ?? "" });
+        toast.success("Invoice updated");
         router.push(`/dashboard/invoices/${invoice.id}`);
       } else {
         const created = await createInvoice(payload);
+        toast.success("Invoice created");
         // Go straight to the letterhead view and open the print preview
         router.push(`/dashboard/invoices/${created.id}?print=1`);
       }
       router.refresh();
-    } catch {
+    } catch (e) {
+      toast.error(flashError(e, "Failed to save the invoice. Please check your input and try again."));
       setError("Failed to save the invoice. Please check your input and try again.");
       setPending(false);
     }

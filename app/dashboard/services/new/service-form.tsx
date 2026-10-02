@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -50,9 +52,11 @@ export function ServiceForm({
       };
       if (initial) await updateService(initial.id, payload);
       else await createService(payload);
+      toast.success(initial ? "Service updated" : "Service created");
       router.push("/dashboard/services");
       router.refresh();
-    } catch {
+    } catch (e) {
+      toast.error(flashError(e, "Failed to save the service. Please check your input and try again."));
       setError("Failed to save the service. Please check your input and try again.");
       setPending(false);
     }

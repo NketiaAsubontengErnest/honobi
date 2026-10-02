@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -44,9 +46,11 @@ export default function NewEmployeePage() {
         address: String(formData.get("address") || "") || undefined,
         emergencyContact: String(formData.get("emergencyContact") || "") || undefined,
       });
+      toast.success("Employee added");
       router.push("/dashboard/employees");
       router.refresh();
-    } catch {
+    } catch (e) {
+      toast.error(flashError(e, "Failed to save the employee. Please check your input and try again."));
       setError("Failed to save the employee. Please check your input and try again.");
     }
   }

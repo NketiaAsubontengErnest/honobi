@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -45,9 +47,11 @@ export function JobForm({
     try {
       if (initial) await updateJob(initial.id, formData);
       else await createJob(formData);
+      toast.success(initial ? "Job updated" : "Job created");
       router.push("/dashboard/jobs");
       router.refresh();
-    } catch {
+    } catch (e) {
+      toast.error(flashError(e, "Failed to save the job. Please check your input and try again."));
       setError("Failed to save the job. Please check your input and try again.");
     }
   }

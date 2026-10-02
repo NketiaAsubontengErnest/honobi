@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -62,9 +64,11 @@ export function ExpenseForm({ suppliers }: { suppliers: { value: string; label: 
     setError(null);
     try {
       await createExpense(formData);
+      toast.success("Expense recorded");
       router.push("/dashboard/expenses");
       router.refresh();
-    } catch {
+    } catch (e) {
+      toast.error(flashError(e, "Failed to save the expense. Please check your input and try again."));
       setError("Failed to save the expense. Please check your input and try again.");
     }
   }

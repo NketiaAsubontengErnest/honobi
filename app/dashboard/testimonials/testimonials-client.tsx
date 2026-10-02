@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,8 +26,13 @@ export function TestimonialsClient({ testimonials }: { testimonials: Testimonial
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this testimonial?")) return;
-    await deleteTestimonial(id);
-    setData((prev) => prev.filter((t) => t.id !== id));
+    try {
+      await deleteTestimonial(id);
+      setData((prev) => prev.filter((t) => t.id !== id));
+      toast.success("Testimonial deleted");
+    } catch (e) {
+      toast.error(flashError(e, "Could not delete the testimonial"));
+    }
   };
 
   return (

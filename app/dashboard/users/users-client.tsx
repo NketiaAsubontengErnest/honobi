@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { DataTable } from "@/components/dashboard/data-table";
 import { Button } from "@/components/ui/button";
@@ -23,8 +25,13 @@ export function UsersClient({ users }: { users: User[] }) {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Deactivate this user?")) return;
-    await deleteUser(id);
-    setData((prev) => prev.filter((u) => u.id !== id));
+    try {
+      await deleteUser(id);
+      setData((prev) => prev.filter((u) => u.id !== id));
+      toast.success("User deactivated");
+    } catch (e) {
+      toast.error(flashError(e, "Could not delete the user"));
+    }
   };
 
   const columns = [

@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -116,8 +118,10 @@ export function CuttingPlansClient({
     setError("");
     try {
       const copy = await duplicateCuttingPlan(id);
+      toast.success("Cutting plan duplicated");
       router.push(`/dashboard/cutting-plans/${copy.id}`);
     } catch (e) {
+      toast.error(flashError(e, "Failed to duplicate plan"));
       setError(e instanceof Error ? e.message : "Failed to duplicate plan");
     } finally {
       setBusy(false);
@@ -130,8 +134,10 @@ export function CuttingPlansClient({
     setError("");
     try {
       await deleteCuttingPlan(id);
+      toast.success("Cutting plan archived");
       router.refresh();
     } catch (e) {
+      toast.error(flashError(e, "Failed to archive plan"));
       setError(e instanceof Error ? e.message : "Failed to archive plan");
     } finally {
       setBusy(false);

@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -195,8 +197,10 @@ export function PayrollClient({ configs, runs, summary, employees, userRole }: P
           deduction: parseFloat(runDeduction) || 0,
           baseRateOverride: parseFloat(runBaseOverride) || null,
         });
+        toast.success("Payroll run created");
         router.refresh();
       } catch (e) {
+        toast.error(flashError(e, "Failed to create payroll run"));
         setError(e instanceof Error ? e.message : "Failed to create payroll run");
       }
     });
@@ -207,8 +211,10 @@ export function PayrollClient({ configs, runs, summary, employees, userRole }: P
     startTransition(async () => {
       try {
         await fn();
+        toast.success("Payroll updated");
         router.refresh();
       } catch (e) {
+        toast.error(flashError(e, fallback));
         setError(e instanceof Error ? e.message : fallback);
       }
     });

@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -45,9 +47,11 @@ export function IncomeForm({ customers }: { customers: { value: string; label: s
     setError(null);
     try {
       await createIncome(formData);
+      toast.success("Income recorded");
       router.push("/dashboard/income");
       router.refresh();
-    } catch {
+    } catch (e) {
+      toast.error(flashError(e, "Failed to save the income record. Please check your input and try again."));
       setError("Failed to save the income record. Please check your input and try again.");
     }
   }

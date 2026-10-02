@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useRouter } from "next/navigation";
 import { DataTable } from "@/components/dashboard/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -52,8 +54,13 @@ export function CustomersClient({
 
   const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to archive this customer?")) {
-      await deleteCustomer(id);
-      router.refresh();
+      try {
+        await deleteCustomer(id);
+        toast.success("Customer archived");
+        router.refresh();
+      } catch (e) {
+        toast.error(flashError(e, "Could not archive the customer"));
+      }
     }
   };
 

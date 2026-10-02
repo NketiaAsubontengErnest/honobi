@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -28,9 +30,11 @@ export function InventoryItemForm({ suppliers }: { suppliers: { value: string; l
     setError(null);
     try {
       await createInventoryItem(formData);
+      toast.success("Inventory item added");
       router.push("/dashboard/inventory");
       router.refresh();
-    } catch {
+    } catch (e) {
+      toast.error(flashError(e, "Failed to save the inventory item. Please check your input and try again."));
       setError("Failed to save the inventory item. Please check your input and try again.");
     }
   }

@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -49,9 +51,11 @@ export function ProjectEditForm({
     setPending(true);
     try {
       await updateProject(projectId, formData);
+      toast.success("Project updated");
       router.push("/dashboard/projects");
       router.refresh();
-    } catch {
+    } catch (e) {
+      toast.error(flashError(e, "Failed to update the project. Please check your input and try again."));
       setError("Failed to update the project. Please check your input and try again.");
       setPending(false);
     }

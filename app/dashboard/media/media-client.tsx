@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,6 +42,12 @@ export function MediaClient({
   const [copied, setCopied] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");
 
+  const notify = (ok: boolean, text: string) => {
+    if (ok) toast.success(text);
+    else toast.error(text);
+    setMessage({ ok, text });
+  };
+
   const folders = Array.from(new Set(media.map((m) => m.folder).filter(Boolean))) as string[];
   const visible = filter === "all" ? media : media.filter((m) => m.folder === filter);
 
@@ -54,14 +62,14 @@ export function MediaClient({
       const res = await fetch("/api/media", { method: "POST", body });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setMessage({ ok: false, text: json.errors?.join(" · ") || json.error || "Upload failed" });
+        notify(false, json.errors?.join(" · ") || json.error || "Upload failed");
       } else {
         const errs = json.errors?.length ? ` (${json.errors.join(" · ")})` : "";
-        setMessage({ ok: true, text: `Uploaded ${json.saved.length} file(s)${errs}` });
+        notify(true, `Uploaded ${json.saved.length} file(s)${errs}`);
         router.refresh();
       }
     } catch {
-      setMessage({ ok: false, text: "Upload failed. Check your connection and try again." });
+      notify(false, "Upload failed. Check your connection and try again.");
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -73,9 +81,10 @@ export function MediaClient({
     setBusy(true);
     try {
       await deleteMedia(m.id);
+      toast.success("Removed from the library");
       router.refresh();
     } catch (e) {
-      setMessage({ ok: false, text: e instanceof Error ? e.message : "Delete failed" });
+      notify(false, e instanceof Error ? e.message : "Delete failed");
     } finally {
       setBusy(false);
     }
@@ -84,10 +93,12 @@ export function MediaClient({
   async function toggleGallery(m: Media) {
     setBusy(true);
     try {
-      await setMediaInGallery(m.id, m.folder !== "gallery" && m.folder !== "uploads");
+      const show = m.folder !== "gallery" && m.folder !== "uploads";
+      await setMediaInGallery(m.id, show);
+      toast.success(show ? "Added to the public gallery" : "Hidden from the public gallery");
       router.refresh();
     } catch (e) {
-      setMessage({ ok: false, text: e instanceof Error ? e.message : "Could not update" });
+      notify(false, e instanceof Error ? e.message : "Could not update");
     } finally {
       setBusy(false);
     }
@@ -99,7 +110,7 @@ export function MediaClient({
       setCopied(m.id);
       setTimeout(() => setCopied(null), 1500);
     } catch {
-      setMessage({ ok: false, text: "Could not copy the link" });
+      notify(false, "Could not copy the link");
     }
   }
 

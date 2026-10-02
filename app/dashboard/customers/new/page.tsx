@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "sonner";
+import { flashError } from "@/lib/utils/flash";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,9 +20,15 @@ export default function NewCustomerPage() {
   const router = useRouter();
 
   async function handleSubmit(formData: FormData) {
-    const result = await createCustomer(formData);
-    if (result?.success) {
-      router.push("/dashboard/customers");
+    try {
+      const result = await createCustomer(formData);
+      if (result?.success) {
+        toast.success("Customer added");
+        router.push("/dashboard/customers");
+        router.refresh();
+      }
+    } catch (e) {
+      toast.error(flashError(e, "Could not save the customer. Please check the details and try again."));
     }
   }
 
