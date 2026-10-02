@@ -269,6 +269,10 @@ export const cuttingPieceSchema = z.object({
   grain: z.enum(["NONE", "LENGTH", "WIDTH"]).default("NONE"),
   allowRotation: z.boolean().default(true),
   notes: z.string().nullish().or(z.literal("")),
+  edgeTop: z.string().max(40).nullish(),
+  edgeBottom: z.string().max(40).nullish(),
+  edgeLeft: z.string().max(40).nullish(),
+  edgeRight: z.string().max(40).nullish(),
 });
 
 export const cuttingPlanSchema = z.object({

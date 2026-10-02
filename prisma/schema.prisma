@@ -1052,6 +1052,11 @@ model CuttingPiece {
   grain         GrainDirection  @default(NONE)
   allowRotation Boolean         @default(true)
   notes         String?
+  // Edge banding per side (name/code of the band, empty = no band)
+  edgeTop       String?
+  edgeBottom    String?
+  edgeLeft      String?
+  edgeRight     String?
   order         Int             @default(0)
 
   plan          CuttingPlan     @relation(fields: [planId], references: [id], onDelete: Cascade)

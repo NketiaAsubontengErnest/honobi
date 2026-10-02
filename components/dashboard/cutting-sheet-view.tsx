@@ -37,12 +37,15 @@ function tint(index: number) {
   return `hsl(${hues[index % hues.length]} 70% 94%)`;
 }
 
+export type EdgeBands = Record<string, { top?: string; left?: string; bottom?: string; right?: string }>;
+
 export function CuttingSheetView({
   layout,
   boardLength,
   boardWidth,
   trim,
   refOrder,
+  edges = {},
   showSizes,
   showLabels,
   usableLength,
@@ -53,6 +56,7 @@ export function CuttingSheetView({
   boardWidth: number;
   trim: { top: number; bottom: number; left: number; right: number };
   refOrder: string[];
+  edges?: EdgeBands;
   showSizes: boolean;
   showLabels: boolean;
   usableLength: number;
@@ -107,9 +111,59 @@ export function CuttingSheetView({
           const pieceFs = Math.min(fs, p.width * 0.28, p.length * 0.28);
           const tiny = pieceFs < fs * 0.32;
           const tall = p.width > p.length * 1.6 && p.width > fs * 3;
+          // Edge bands are defined for the piece as entered; a rotated piece turns clockwise
+          const e = edges[p.ref] ?? {};
+          const side = p.rotated
+            ? { top: e.left, right: e.top, bottom: e.right, left: e.bottom }
+            : { top: e.top, right: e.right, bottom: e.bottom, left: e.left };
+          const bw = fs * 0.2;
+          const codeFs = fs * 0.72;
+          const roomForCodes = !tiny && p.length > fs * 7 && p.width > fs * 7;
           return (
             <g key={`${p.ref}-${i}`}>
               <rect x={x} y={y} width={p.length} height={p.width} fill={tint(idx)} stroke="#15803d" strokeWidth={fs * 0.1} />
+              {side.top && <line x1={x} y1={y + bw / 2} x2={x + p.length} y2={y + bw / 2} stroke="#ea580c" strokeWidth={bw} />}
+              {side.bottom && <line x1={x} y1={y + p.width - bw / 2} x2={x + p.length} y2={y + p.width - bw / 2} stroke="#ea580c" strokeWidth={bw} />}
+              {side.left && <line x1={x + bw / 2} y1={y} x2={x + bw / 2} y2={y + p.width} stroke="#ea580c" strokeWidth={bw} />}
+              {side.right && <line x1={x + p.length - bw / 2} y1={y} x2={x + p.length - bw / 2} y2={y + p.width} stroke="#ea580c" strokeWidth={bw} />}
+              {showSizes && roomForCodes && (
+                <>
+                  {side.bottom && (
+                    <text x={x + p.length / 2} y={y + p.width - bw - codeFs * 0.3} textAnchor="middle" fontSize={codeFs} fill="#9a3412">
+                      {side.bottom}
+                    </text>
+                  )}
+                  {side.top && (
+                    <text x={x + p.length / 2} y={y + bw + codeFs * 2.6} textAnchor="middle" fontSize={codeFs} fill="#9a3412">
+                      {side.top}
+                    </text>
+                  )}
+                  {side.right && (
+                    <text
+                      x={x + p.length - bw - codeFs * 0.3}
+                      y={y + p.width / 2}
+                      textAnchor="middle"
+                      fontSize={codeFs}
+                      fill="#9a3412"
+                      transform={`rotate(-90 ${x + p.length - bw - codeFs * 0.3} ${y + p.width / 2})`}
+                    >
+                      {side.right}
+                    </text>
+                  )}
+                  {side.left && (
+                    <text
+                      x={x + bw + codeFs * 2.6}
+                      y={y + p.width / 2}
+                      textAnchor="middle"
+                      fontSize={codeFs}
+                      fill="#9a3412"
+                      transform={`rotate(-90 ${x + bw + codeFs * 2.6} ${y + p.width / 2})`}
+                    >
+                      {side.left}
+                    </text>
+                  )}
+                </>
+              )}
               {!tiny && (
                 <>
                   {showSizes && (

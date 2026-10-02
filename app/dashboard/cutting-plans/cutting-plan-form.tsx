@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { CuttingPrintPanel } from "@/components/dashboard/cutting-print-panel";
-import { CuttingSheetView, groupIdenticalBoards } from "@/components/dashboard/cutting-sheet-view";
+import { CuttingSheetView, groupIdenticalBoards, type EdgeBands } from "@/components/dashboard/cutting-sheet-view";
 import {
   createCuttingPlan,
   updateCuttingPlan,
@@ -36,6 +36,10 @@ type PieceRow = {
   grain: GrainOption;
   allowRotation: boolean;
   notes: string;
+  edgeTop: string;
+  edgeLeft: string;
+  edgeBottom: string;
+  edgeRight: string;
 };
 
 export type InitialPlanData = {
@@ -79,6 +83,10 @@ export type InitialPlanData = {
     grain: string;
     allowRotation: boolean;
     notes: string | null;
+    edgeTop?: string | null;
+    edgeLeft?: string | null;
+    edgeBottom?: string | null;
+    edgeRight?: string | null;
   }[];
 };
 
@@ -132,6 +140,10 @@ const emptyRow = (): PieceRow => ({
   grain: "NONE",
   allowRotation: true,
   notes: "",
+  edgeTop: "",
+  edgeLeft: "",
+  edgeBottom: "",
+  edgeRight: "",
 });
 
 // Pieces no longer have a user-entered name; fall back to an auto label.
@@ -220,12 +232,23 @@ export function CuttingPlanForm({
           grain: p.grain as GrainOption,
           allowRotation: p.allowRotation,
           notes: p.notes ?? "",
+          edgeTop: p.edgeTop ?? "",
+          edgeLeft: p.edgeLeft ?? "",
+          edgeBottom: p.edgeBottom ?? "",
+          edgeRight: p.edgeRight ?? "",
         }))
       : [emptyRow(), emptyRow(), emptyRow()]
   );
 
   // ---------- results / ui ----------
-  const [result, setResult] = useState<OptimizerResult | null>(initialData?.layout ?? null);
+  const [result, setResult] = useState<OptimizerResult | null>(() => {
+    const saved = initialData?.layout ?? null;
+    if (!saved || !initialData) return saved;
+    // Layouts saved from the browser reference pieces by position ("idx:N"); map them back to the loaded rows
+    const keys = initialData.pieces.map((p) => p.id);
+    const remap = (ref: string) => (ref.startsWith("idx:") ? keys[Number(ref.slice(4))] ?? ref : ref);
+    return { ...saved, boards: saved.boards.map((b) => ({ ...b, placements: b.placements.map((pl) => ({ ...pl, ref: remap(pl.ref) })) })) };
+  });
   const [printOpen, setPrintOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -360,6 +383,21 @@ export function CuttingPlanForm({
     }
   };
 
+  // Placements reference pieces by row key in the browser; store positions so a reload can re-link them
+  const storableResult = (res: OptimizerResult): OptimizerResult => {
+    const valid = rows.filter((r) => parseFloat(r.length) > 0 && parseFloat(r.width) > 0).map((r) => r.key);
+    return {
+      ...res,
+      boards: res.boards.map((b) => ({
+        ...b,
+        placements: b.placements.map((pl) => {
+          const i = valid.indexOf(pl.ref);
+          return i === -1 ? pl : { ...pl, ref: `idx:${i}` };
+        }),
+      })),
+    };
+  };
+
   // ---------- save ----------
   const handleSave = async () => {
     const errs = validate();
@@ -402,8 +440,12 @@ export function CuttingPlanForm({
             grain: r.grain,
             allowRotation: r.allowRotation,
             notes: r.notes.trim() || null,
+            edgeTop: r.edgeTop.trim() || null,
+            edgeLeft: r.edgeLeft.trim() || null,
+            edgeBottom: r.edgeBottom.trim() || null,
+            edgeRight: r.edgeRight.trim() || null,
           })),
-        result: result ?? null,
+        result: result ? storableResult(result) : null,
       };
       const saved =
         mode === "edit" && initialData
@@ -525,6 +567,10 @@ export function CuttingPlanForm({
                 grain: parseGrain(p.grain ?? ""),
                 allowRotation: p.allowRotation !== false && p.rotation !== "false",
                 notes: p.notes ? String(p.notes) : "",
+                edgeTop: p.edgeTop ? String(p.edgeTop) : "",
+                edgeLeft: p.edgeLeft ? String(p.edgeLeft) : "",
+                edgeBottom: p.edgeBottom ? String(p.edgeBottom) : "",
+                edgeRight: p.edgeRight ? String(p.edgeRight) : "",
               });
             });
             if (imported.length) pieceRows(imported);
@@ -544,6 +590,10 @@ export function CuttingPlanForm({
               quantity: String(p.quantity ?? 1),
               grain: parseGrain(p.grain ?? ""),
               allowRotation: p.allowRotation !== false && p.rotation !== "false",
+              edgeTop: p.edgeTop ? String(p.edgeTop) : "",
+              edgeLeft: p.edgeLeft ? String(p.edgeLeft) : "",
+              edgeBottom: p.edgeBottom ? String(p.edgeBottom) : "",
+              edgeRight: p.edgeRight ? String(p.edgeRight) : "",
             });
           });
           if (imported.length) pieceRows(imported);
@@ -559,6 +609,8 @@ export function CuttingPlanForm({
           const idx = (name: string) => header.indexOf(name);
           const iName = idx("name"), iLen = idx("length"), iW = idx("width"), iQty = idx("quantity");
           const iGrain = idx("grain"), iRot = idx("rotation"), iNotes = idx("notes");
+          const iET = idx("edgetop"), iEL = idx("edgeleft"), iEB = idx("edgebottom"), iER = idx("edgeright");
+          const edge = (cols: string[], i: number) => (i >= 0 ? (cols[i] ?? "").trim().replace(/^#$/, "") : "");
           if (iName === -1 || iLen === -1 || iW === -1 || iQty === -1) {
             errs.push("CSV header must include: name,length,width,quantity[,grain,rotation,notes]");
           } else {
@@ -580,6 +632,10 @@ export function CuttingPlanForm({
                 grain: iGrain >= 0 ? parseGrain(cols[iGrain] ?? "") : "NONE",
                 allowRotation: iRot >= 0 ? String(cols[iRot]).trim().toLowerCase() !== "false" : true,
                 notes: iNotes >= 0 ? (cols[iNotes] ?? "").trim() : "",
+                edgeTop: edge(cols, iET),
+                edgeLeft: edge(cols, iEL),
+                edgeBottom: edge(cols, iEB),
+                edgeRight: edge(cols, iER),
               });
             });
             if (imported.length) pieceRows(imported);
@@ -609,6 +665,10 @@ export function CuttingPlanForm({
             grain: r.grain,
             rotation: r.allowRotation,
             notes: r.notes || undefined,
+            edgeTop: r.edgeTop || undefined,
+            edgeLeft: r.edgeLeft || undefined,
+            edgeBottom: r.edgeBottom || undefined,
+            edgeRight: r.edgeRight || undefined,
           })),
           null,
           2
@@ -616,8 +676,8 @@ export function CuttingPlanForm({
         "application/json"
       );
     } else {
-      const header = "name,length,width,quantity,grain,rotation,notes";
-      const body = list.map((r, i) => `${pieceLabel(r, i)},${r.length},${r.width},${r.quantity},${r.grain},${r.allowRotation},${r.notes}`);
+      const header = "name,length,width,quantity,grain,rotation,notes,edgeTop,edgeLeft,edgeBottom,edgeRight";
+      const body = list.map((r, i) => `${pieceLabel(r, i)},${r.length},${r.width},${r.quantity},${r.grain},${r.allowRotation},${r.notes},${r.edgeTop},${r.edgeLeft},${r.edgeBottom},${r.edgeRight}`);
       download("cutting-list.csv", [header, ...body].join("\n"), "text/csv");
     }
   };
@@ -656,6 +716,10 @@ export function CuttingPlanForm({
                 grain: r.grain,
                 allowRotation: r.allowRotation,
                 notes: r.notes || null,
+                edgeTop: r.edgeTop || null,
+                edgeLeft: r.edgeLeft || null,
+                edgeBottom: r.edgeBottom || null,
+                edgeRight: r.edgeRight || null,
               })),
           },
           result,
@@ -675,6 +739,34 @@ export function CuttingPlanForm({
   const activeIndex = Math.min(tab, Math.max(0, groups.length - 1));
   const activeGroup = groups[activeIndex];
   const refOrder = useMemo(() => rows.map((r) => r.key), [rows]);
+  const edgeMap = useMemo<EdgeBands>(
+    () => Object.fromEntries(rows.map((r) => [r.key, { top: r.edgeTop.trim(), left: r.edgeLeft.trim(), bottom: r.edgeBottom.trim(), right: r.edgeRight.trim() }])),
+    [rows]
+  );
+  const edgeCodes = useMemo(
+    () => Array.from(new Set(rows.flatMap((r) => [r.edgeTop, r.edgeLeft, r.edgeBottom, r.edgeRight]).map((v) => v.trim()).filter(Boolean))),
+    [rows]
+  );
+  // Total edge banding needed per band code, in metres
+  const edgeTotals = useMemo(() => {
+    const toMetres = unit === "cm" ? 0.01 : unit === "in" ? 0.0254 : 0.001;
+    const totals = new Map<string, number>();
+    for (const r of rows) {
+      const L = parseFloat(r.length);
+      const W = parseFloat(r.width);
+      const q = Math.max(1, parseInt(r.quantity) || 1);
+      if (!(L > 0) || !(W > 0)) continue;
+      const add = (code: string, len: number) => {
+        const c = code.trim();
+        if (c) totals.set(c, (totals.get(c) ?? 0) + len * q * toMetres);
+      };
+      add(r.edgeTop, L);
+      add(r.edgeBottom, L);
+      add(r.edgeLeft, W);
+      add(r.edgeRight, W);
+    }
+    return Array.from(totals.entries());
+  }, [rows, unit]);
 
   const appendRow = (focus = true) => {
     const nr = emptyRow();
@@ -770,7 +862,7 @@ export function CuttingPlanForm({
 
       {error && <p className="text-sm text-destructive print:hidden">{error}</p>}
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)] print:hidden">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,700px)_minmax(0,1fr)] print:hidden">
         {/* ================= LEFT: PIECES + STOCK ================= */}
         <div className="space-y-4">
           {/* ---- PIECES ---- */}
@@ -814,17 +906,27 @@ export function CuttingPlanForm({
               </div>
             )}
 
+            <datalist id="edge-band-codes">
+              {edgeCodes.map((c) => <option key={c} value={c} />)}
+            </datalist>
             <div className="max-h-[420px] overflow-auto">
               <table className="w-full border-collapse text-sm">
                 <thead className="sticky top-0 z-10">
                   <tr>
-                    <th className={`${th} w-9 text-center`}>#</th>
-                    <th className={`${th} w-24`}>Length</th>
-                    <th className={`${th} w-24`}>Width</th>
-                    <th className={`${th} w-20`}>Quantity</th>
-                    <th className={th}>Label</th>
-                    <th className={`${th} w-28`}>Texture</th>
-                    <th className={`${th} w-12 text-center`}>Rot.</th>
+                    <th rowSpan={2} className={`${th} w-9 text-center`}>#</th>
+                    <th rowSpan={2} className={`${th} w-20`}>Length</th>
+                    <th rowSpan={2} className={`${th} w-20`}>Width</th>
+                    <th rowSpan={2} className={`${th} w-16`}>Qty</th>
+                    <th rowSpan={2} className={`${th} min-w-20`}>Label</th>
+                    <th rowSpan={2} className={`${th} w-24`}>Texture</th>
+                    <th rowSpan={2} className={`${th} w-10 text-center`}>Rot.</th>
+                    <th colSpan={4} className={`${th} text-center`}>Edge bands (name)</th>
+                  </tr>
+                  <tr>
+                    <th className={`${th} w-16`}>Top</th>
+                    <th className={`${th} w-16`}>Left</th>
+                    <th className={`${th} w-16`}>Bottom</th>
+                    <th className={`${th} w-16`}>Right</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -867,12 +969,23 @@ export function CuttingPlanForm({
                         <td className={`${tdBase} text-center`}>
                           <input type="checkbox" className="h-4 w-4" checked={r.allowRotation} onChange={(e) => updateRow(r.key, { allowRotation: e.target.checked })} />
                         </td>
+                        {(["edgeTop", "edgeLeft", "edgeBottom", "edgeRight"] as const).map((f) => (
+                          <td key={f} className={tdBase}>
+                            <input
+                              className={cell}
+                              list="edge-band-codes"
+                              value={r[f]}
+                              onChange={(e) => updateRow(r.key, { [f]: e.target.value } as Partial<PieceRow>)}
+                              placeholder="—"
+                            />
+                          </td>
+                        ))}
                       </tr>
                     );
                   })}
                   {rows.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="p-4 text-center text-sm text-muted-foreground">
+                      <td colSpan={11} className="p-4 text-center text-sm text-muted-foreground">
                         No pieces yet. Press Append, or Import a CSV / JSON list.
                       </td>
                     </tr>
@@ -881,7 +994,7 @@ export function CuttingPlanForm({
               </table>
             </div>
             <p className="border-t bg-slate-50 px-2 py-1 text-[11px] text-muted-foreground">
-              Tip: press Enter in the last Quantity cell to add the next row. Import columns: name,length,width,quantity[,grain,rotation,notes].
+              Tip: press Enter in the last Quantity cell to add the next row. Edge bands: type a band name (e.g. HD) on any side; leave empty for no band. Import columns: name,length,width,quantity[,grain,rotation,notes,edgeTop,edgeLeft,edgeBottom,edgeRight].
             </p>
           </div>
 
@@ -1050,6 +1163,7 @@ export function CuttingPlanForm({
                         boardWidth={parseFloat(boardWidth) || result.usableWidth}
                         trim={{ top: effTrim.trimTop, bottom: effTrim.trimBottom, left: effTrim.trimLeft, right: effTrim.trimRight }}
                         refOrder={refOrder}
+                        edges={edgeMap}
                         showSizes={showSizes}
                         showLabels={showLabels}
                         usableLength={result.usableLength}
@@ -1093,6 +1207,7 @@ export function CuttingPlanForm({
                       result.largestOffcut ? `${Math.round(result.largestOffcut.length)} × ${Math.round(result.largestOffcut.width)}` : "—",
                     ],
                     ...(pricePerSheet > 0 ? [["Material cost", `GHS ${(pricePerSheet * result.boardsUsed).toFixed(2)}`]] : []),
+                    ...edgeTotals.map(([code, m]) => [`Edge band ${code}`, `${m.toFixed(2)} m`]),
                   ].map(([k, v]) => (
                     <div key={k} className="rounded-lg border p-2">
                       <p className="text-xs text-muted-foreground">{k}</p>

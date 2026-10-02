@@ -126,6 +126,10 @@ type PlanInput = {
     grain: string;
     allowRotation: boolean;
     notes?: string | null;
+    edgeTop?: string | null;
+    edgeBottom?: string | null;
+    edgeLeft?: string | null;
+    edgeRight?: string | null;
   }[];
   result?: OptimizerResult | null;
 };
@@ -167,6 +171,10 @@ function buildData(input: PlanInput, layout?: OptimizerResult | null): Record<st
         grain: p.grain as never,
         allowRotation: p.allowRotation,
         notes: p.notes || null,
+        edgeTop: p.edgeTop?.trim() || null,
+        edgeBottom: p.edgeBottom?.trim() || null,
+        edgeLeft: p.edgeLeft?.trim() || null,
+        edgeRight: p.edgeRight?.trim() || null,
         order: i,
       })),
     },
